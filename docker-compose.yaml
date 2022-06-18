@@ -1,0 +1,12 @@
+version: "3"  # version of docker-compose
+
+services:
+  dbpostgres:
+    image: postgres:latest
+    restart: always
+    environment:  # environmental variables, can be loaded from .env
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"

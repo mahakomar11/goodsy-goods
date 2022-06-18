@@ -7,7 +7,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.models import (BadRequestError,
+from api.models import (BadRequestError,
                         NotFoundError,
                         PostImportsRequest,
                         CategoryWithChildren,
