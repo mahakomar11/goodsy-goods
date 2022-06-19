@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from typing import ForwardRef, List, Optional, Union
 from uuid import UUID
@@ -46,7 +47,7 @@ class CategoryImport(BaseModel):
 
 
 class OfferGet(OfferImport):
-    date: str = Field(..., description="Последнее время обновления товара")
+    date: datetime = Field(..., description="Последнее время обновления товара")
 
 
 class CategoryGet(CategoryImport):
@@ -54,7 +55,7 @@ class CategoryGet(CategoryImport):
         None,
         description="Средняя цена товаров категории, включая товары дочерних категорий",
     )
-    date: str = Field(..., description="Последнее время обновления категории")
+    date: datetime = Field(..., description="Последнее время обновления категории")
 
 
 class OfferWithChildren(OfferGet):
@@ -102,3 +103,18 @@ class BadRequestError(BaseModel):
 class NotFoundError(BaseModel):
     code: int = Field(404, example=404)
     message: str = Field(..., example="Item not found")
+
+
+class BadRequestResponse(BaseModel):
+    description: str = Field("Невалидная схема документа или входные данные не верны.")
+    model: BadRequestError = Field(BadRequestError)
+
+
+class ValidateResponse(BaseModel):
+    description: str = Field("Не поддерживается.")
+    model: None = Field(None)
+
+
+class NotFoundResponse(BaseModel):
+    description: str = Field("Категория/товар не найден.")
+    model: NotFoundError = Field(NotFoundError)

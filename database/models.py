@@ -1,6 +1,8 @@
+import sqlalchemy
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID as postgressUUID
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.ext.hybrid import hybrid_property
 
 Base = declarative_base()
 
@@ -12,10 +14,14 @@ class Item(Base):
     name = Column(String(180), nullable=False)
     type = Column(String(180), nullable=False)
     price = Column(Integer, nullable=True)
-    date = Column(DateTime, nullable=False)
+    date = Column(DateTime(timezone=True), nullable=False)
 
     def dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    @hybrid_property
+    def datetime(self):
+        return sqlalchemy.func.datetime(self.date)
 
 
 class Parent(Base):

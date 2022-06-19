@@ -1,25 +1,24 @@
-import os
 from typing import Optional, Union
 from uuid import UUID
 
 import uvicorn
-from dotenv import load_dotenv
 from fastapi import FastAPI, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from api.models import (
-    BadRequestError,
+    BadRequestResponse,
     CategoryWithChildren,
     GetSalesResponse,
     GetStatisticsResponse,
-    NotFoundError,
+    NotFoundResponse,
     OfferWithChildren,
     PostImportsRequest,
+    ValidateResponse,
 )
 from database.interface import DBInterface
-from database.models import Base, Item
+from src.constants import DB_SETTINGS
 from src.core import Core
 
 app = FastAPI(
@@ -28,21 +27,8 @@ app = FastAPI(
     version="1.0",
 )
 
-load_dotenv()
-DB = DBInterface(
-    user=os.getenv("POSTGRES_USER"),
-    password=os.getenv("POSTGRES_PASSWORD"),
-    database_name=os.getenv("POSTGRES_DB"),
-    host="localhost",
-    port="5432",
-)
-
-engine = DB.engine
-if not engine.dialect.has_table(engine.connect(), Item):
-    Base.metadata.create_all(engine)
-
+DB = DBInterface(**DB_SETTINGS)
 core = Core(DB)
-# core.delete_id('d515e43f-f3f6-4471-bb77-6b455017a2d4')
 
 
 @app.exception_handler(RequestValidationError)
@@ -63,15 +49,12 @@ async def validation_exception_handler(request, exc: RequestValidationError):
             "description": "Вставка или обновление прошли успешно.",
             "content": None,
         },
-        "400": {
-            "description": "Невалидная схема документа или входные данные не верны.",
-            "model": BadRequestError,
-        },
-        "422": {"description": "Не поддерживается.", "model": None},
+        "400": dict(BadRequestResponse()),
+        "422": dict(ValidateResponse()),
     },
     tags=["Базовые задачи"],
 )
-def post_imports(items_to_post: PostImportsRequest) -> Union[None, BadRequestError]:
+def post_imports(items_to_post: PostImportsRequest):
     return core.post_imports(items_to_post)
 
 
@@ -80,16 +63,13 @@ def post_imports(items_to_post: PostImportsRequest) -> Union[None, BadRequestErr
     response_model=None,
     responses={
         "200": {"description": "Удаление прошло успешно.", "content": None},
-        "400": {
-            "description": "Невалидная схема документа или входные данные не верны.",
-            "model": BadRequestError,
-        },
-        "404": {"description": "Категория/товар не найден.", "model": NotFoundError},
-        "422": {"description": "Не поддерживается.", "model": None},
+        "400": dict(BadRequestResponse()),
+        "404": dict(NotFoundResponse()),
+        "422": dict(ValidateResponse()),
     },
     tags=["Базовые задачи"],
 )
-def delete_id(id: UUID) -> Union[None, BadRequestError, NotFoundError]:
+def delete_id(id: UUID):
     return core.delete_id(id)
 
 
@@ -98,18 +78,13 @@ def delete_id(id: UUID) -> Union[None, BadRequestError, NotFoundError]:
     response_model=Union[CategoryWithChildren, OfferWithChildren],
     responses={
         "200": {"description": "Информация об элементе."},
-        "400": {
-            "description": "Невалидная схема документа или входные данные не верны.",
-            "model": BadRequestError,
-        },
-        "404": {"description": "Категория/товар не найден.", "model": NotFoundError},
-        "422": {"description": "Не поддерживается.", "model": None},
+        "400": dict(BadRequestResponse()),
+        "404": dict(NotFoundResponse()),
+        "422": dict(ValidateResponse()),
     },
     tags=["Базовые задачи"],
 )
-def get_node(
-    id: UUID,
-) -> Union[CategoryWithChildren, OfferWithChildren, BadRequestError, NotFoundError]:
+def get_node(id: UUID):
     return core.get_node(id)
 
 
@@ -118,11 +93,8 @@ def get_node(
     response_model=GetSalesResponse,
     responses={
         "200": {"description": "Список товаров, цена которых была обновлена."},
-        "400": {
-            "description": "Невалидная схема документа или входные данные не верны.",
-            "model": BadRequestError,
-        },
-        "422": {"description": "Не поддерживается.", "model": None},
+        "400": dict(BadRequestResponse()),
+        "422": dict(ValidateResponse()),
     },
     tags=["Дополнительные задачи"],
 )
@@ -135,12 +107,13 @@ def get_sales(date: str):
     response_model=GetStatisticsResponse,
     responses={
         "200": {"description": "Статистика по элементу."},
-        "400": {
-            "description": "Некорректный формат запроса или некорректные даты интервала.",
-            "model": BadRequestError,
-        },
-        "404": {"description": "Категория/товар не найден.", "model": NotFoundError},
-        "422": {"description": "Не поддерживается.", "model": None},
+        "400": dict(
+            BadRequestResponse(
+                description="Некорректный формат запроса или некорректные даты интервала."
+            )
+        ),
+        "404": dict(NotFoundResponse()),
+        "422": dict(ValidateResponse()),
     },
     tags=["Дополнительные задачи"],
 )
@@ -148,7 +121,7 @@ def get_node_statistic(
     id: UUID,
     date_start: Optional[str] = Query(None, alias="dateStart"),
     date_end: Optional[str] = Query(None, alias="dateEnd"),
-) -> Union[GetStatisticsResponse, BadRequestError, NotFoundError]:
+):
     pass
 
 

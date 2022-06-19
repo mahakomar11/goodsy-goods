@@ -1,25 +1,24 @@
 import contextlib
-import os
 from datetime import datetime, timedelta
 from statistics import mean
 
 from dateutil import parser
-from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, sessionmaker
 
 from database.models import Base, DatabaseErrorInternal, Item, Parent
-from unit_test import IMPORT_BATCHES
 
 
 class DBInterface:
     def __init__(self, user, password, database_name, host, port):
-        self.engine = create_engine(
+        engine = create_engine(
             f"postgresql://{user}:{password}@{host}:{port}/{database_name}"
         )
         self.global_session = sessionmaker()
-        self.global_session.configure(bind=self.engine)
+        self.global_session.configure(bind=engine)
+        if not engine.dialect.has_table(engine.connect(), Item):
+            Base.metadata.create_all(engine)
 
     @contextlib.contextmanager
     def open_session(self, global_session: sessionmaker) -> Session:
@@ -37,6 +36,8 @@ class DBInterface:
         with self.open_session(self.global_session) as session:
             for item in items_data:
                 item_in_db: Item = session.get(Item, item["id"])
+                if not item_in_db:
+                    continue
                 if item["type"] != item_in_db.type:
                     print(item["type"])
                     print(item_in_db.type)
@@ -181,28 +182,3 @@ class DBInterface:
                 .join(Parent, Parent.id == Item.id, isouter=True)
             ).all()
             return [dict(row._mapping) for row in updated_items]
-
-
-if __name__ == "__main__":
-    load_dotenv()
-    DB = DBInterface(
-        user=os.getenv("POSTGRES_USER"),
-        password=os.getenv("POSTGRES_PASSWORD"),
-        database_name=os.getenv("POSTGRES_DB"),
-        host="localhost",
-        port="5432",
-    )
-
-    engine = DB.engine
-    if not engine.dialect.has_table(engine.connect(), Item):
-        Base.metadata.create_all(engine)
-
-    DB.post_items(IMPORT_BATCHES[0]["items"], IMPORT_BATCHES[0]["updateDate"])
-    DB.post_items(IMPORT_BATCHES[1]["items"], IMPORT_BATCHES[1]["updateDate"])
-    DB.post_items(IMPORT_BATCHES[2]["items"], IMPORT_BATCHES[2]["updateDate"])
-    DB.post_items(IMPORT_BATCHES[3]["items"], IMPORT_BATCHES[3]["updateDate"])
-    DB.post_items(IMPORT_BATCHES[4]["items"], IMPORT_BATCHES[4]["updateDate"])
-    DB.delete_item("d515e43f-f3f6-4471-bb77-6b455017a2d3")
-    tree = DB.get_item("069cb8d7-bbdd-47d3-ad8f-82ef4c269df1")
-    updated_items = DB.get_updated_items("2022-02-02 13:01:00.000Z")
-    print("ok")
