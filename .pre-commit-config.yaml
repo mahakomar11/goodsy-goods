@@ -1,0 +1,36 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+exclude: '^scripts/legacy|\.tsv$|\.csv$|\.xlsx$|\.txt$|\.html$|\.md$'
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v2.4.0
+    hooks:
+    -   id: check-added-large-files
+        args: ['--maxkb=3000']
+    -   id: check-ast
+    -   id: check-merge-conflict
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: mixed-line-ending
+    -   id: requirements-txt-fixer
+-   repo: https://github.com/timothycrosley/isort
+    rev: 5.3.0
+    hooks:
+    -   id: isort
+        args: ["--profile", "black"]
+-   repo: https://github.com/psf/black
+    rev: 22.3.0
+    hooks:
+    -   id: black
+-   repo: https://github.com/myint/autoflake
+    rev: b330072a26bb13aea8843f8083cee5332d71f78f
+    hooks:
+      - id: autoflake
+        args:
+          -    --in-place
+          -    --remove-all-unused-imports
+          -    --ignore-init-module-imports
+-   repo: https://gitlab.com/pycqa/flake8
+    rev: 3.8.4
+    hooks:
+    - id: flake8
