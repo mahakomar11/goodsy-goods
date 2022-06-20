@@ -52,8 +52,9 @@ class DBInterface:
 
         :param items_data: list of dict with keys id, name, type, price, date
         :param parents_data: list of dict with keys: id, parentId
-        :param date: string of date in ISO 8601 format
         """
+        date: str = items_data[0]["date"]
+        formatted_date: datetime = items_data[0]["datetime"]
         with self.open_session(self.global_session) as session:
             insertion = insert(Item).values(items_data)
             session.execute(
@@ -69,7 +70,31 @@ class DBInterface:
                         index_elements=[Parent.id], set_=insertion.excluded
                     )
                 )
+                parents_ids = [p["parentId"] for p in parents_data if p["parentId"]]
+                if len(parents_ids) > 0:
+                    self._update_parents_data(
+                        session, set(parents_ids), date, formatted_date
+                    )
             session.commit()
+
+    def _update_parents_data(
+        self,
+        session: Session,
+        parent_ids: set[str],
+        child_date: str,
+        child_datetime: datetime,
+    ):
+        (
+            session.query(Item)
+            .filter(Item.id.in_(parent_ids))
+            .update({Item.date: child_date, Item.datetime: child_datetime})
+        )
+        parents = session.query(Parent).filter(Parent.id.in_(parent_ids)).all()
+        next_parents_ids = [p.parentId for p in parents if p.parentId]
+        if len(next_parents_ids) > 0:
+            self._update_parents_data(
+                session, set(next_parents_ids), child_date, child_datetime
+            )
 
     def delete_item(self, id: str) -> None:
         """
