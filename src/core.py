@@ -47,7 +47,8 @@ class Core:
         for item in items:
             if "price" not in item.keys():
                 item["price"] = None
-            item["date"] = parser.parse(date)
+            item["date"] = date
+            item["datetime"] = parser.parse(date)
             item["type"] = item["type"].value
 
             items_data.append({k: v for k, v in item.items() if k != "parentId"})

@@ -174,10 +174,13 @@ class DBInterface:
                     Item.type,
                     Item.price,
                     Item.date,
+                    Item.datetime,
                     Parent.parentId,
                 )
                 .filter(
-                    Item.type == "OFFER", Item.date >= date_since, Item.date <= date
+                    Item.type == "OFFER",
+                    Item.datetime >= date_since,
+                    Item.datetime <= date,
                 )
                 .join(Parent, Parent.id == Item.id, isouter=True)
             ).all()

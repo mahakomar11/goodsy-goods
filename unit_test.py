@@ -17,23 +17,12 @@ IMPORT_BATCHES = [
         "items": [
             {
                 "type": "CATEGORY",
-                "name": "Твары",
-                "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
-                "parentId": None,
-            }
-        ],
-        "updateDate": "2022-02-01T12:00:00.000Z",
-    },
-    {
-        "items": [
-            {
-                "type": "CATEGORY",
                 "name": "Товары",
                 "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
                 "parentId": None,
             }
         ],
-        "updateDate": "2022-02-01T12:20:00.000Z",
+        "updateDate": "2022-02-01T12:00:00.000Z",
     },
     {
         "items": [

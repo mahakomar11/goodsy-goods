@@ -1,4 +1,3 @@
-from datetime import datetime
 from enum import Enum
 from typing import ForwardRef, List, Optional, Union
 from uuid import UUID
@@ -47,7 +46,7 @@ class CategoryImport(BaseModel):
 
 
 class OfferGet(OfferImport):
-    date: datetime = Field(..., description="Последнее время обновления товара")
+    date: str = Field(..., description="Последнее время обновления товара")
 
 
 class CategoryGet(CategoryImport):
@@ -55,7 +54,7 @@ class CategoryGet(CategoryImport):
         None,
         description="Средняя цена товаров категории, включая товары дочерних категорий",
     )
-    date: datetime = Field(..., description="Последнее время обновления категории")
+    date: str = Field(..., description="Последнее время обновления категории")
 
 
 class OfferWithChildren(OfferGet):
@@ -66,7 +65,7 @@ CategoryWithChildren = ForwardRef("CategoryWithChildren")
 
 
 class CategoryWithChildren(CategoryGet):
-    children: List[Union[OfferGet, CategoryWithChildren]] = Field(
+    children: List[Union[OfferWithChildren, CategoryWithChildren]] = Field(
         [], description="Дочерние товары и категории"
     )
 
