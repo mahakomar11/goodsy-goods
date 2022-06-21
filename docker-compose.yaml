@@ -1,12 +1,40 @@
-version: "3"  # version of docker-compose
+version: "3"
+
+volumes:
+  postgres_volume:
 
 services:
+  api:
+    container_name: goodsy-goods_api
+    restart: always
+    env_file:
+      - .env
+    build:
+      context: .
+      dockerfile: Dockerfile
+    networks:
+      - goodsy-goods
+    ports:
+      - "80:80"
+    command: uvicorn api.app:app --host 0.0.0.0 --port 80
+    depends_on:
+      - dbpostgres
+
   dbpostgres:
+    container_name: goodsy-goods_postgres
     image: postgres:latest
     restart: always
-    environment:  # environmental variables, can be loaded from .env
+    environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_volume:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    networks:
+      - goodsy-goods
+
+networks:
+  goodsy-goods:
+    driver: bridge
