@@ -70,31 +70,35 @@ class DBInterface:
                         index_elements=[Parent.id], set_=insertion.excluded
                     )
                 )
-                parents_ids = [p["parentId"] for p in parents_data if p["parentId"]]
+                parents_ids = {p["parentId"] for p in parents_data if p["parentId"]}
                 if len(parents_ids) > 0:
-                    self._update_parents_data(
-                        session, set(parents_ids), date, formatted_date
+                    ancestors_ids = self._get_all_ancestors(
+                        session, parents_ids, parents_ids
+                    )
+                    (
+                        session.query(Item)
+                        .filter(Item.id.in_(ancestors_ids))
+                        .update({Item.date: date, Item.datetime: formatted_date})
                     )
             session.commit()
 
-    def _update_parents_data(
-        self,
-        session: Session,
-        parent_ids: set[str],
-        child_date: str,
-        child_datetime: datetime,
-    ):
-        (
-            session.query(Item)
-            .filter(Item.id.in_(parent_ids))
-            .update({Item.date: child_date, Item.datetime: child_datetime})
+    def _get_all_ancestors(self, session, current_parents_ids: set, all_ancestors: set):
+        """
+        Recursive method for getting ids of all ancestors of parents_ids
+
+        :param session: opened db-session
+        :param parents_ids: set of UUIDs of
+        :return:
+        """
+        next_parents: list[Parent] = (
+            session.query(Parent).filter(Parent.id.in_(current_parents_ids)).all()
         )
-        parents = session.query(Parent).filter(Parent.id.in_(parent_ids)).all()
-        next_parents_ids = [p.parentId for p in parents if p.parentId]
-        if len(next_parents_ids) > 0:
-            self._update_parents_data(
-                session, set(next_parents_ids), child_date, child_datetime
-            )
+        next_parents_ids = {p.parentId for p in next_parents if p.parentId}
+        new_ids = next_parents_ids - all_ancestors
+        if len(new_ids) > 0:
+            all_ancestors.update(new_ids)
+            self._get_all_ancestors(session, new_ids, all_ancestors)
+        return all_ancestors
 
     def delete_item(self, id: str) -> None:
         """
