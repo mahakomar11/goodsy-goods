@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from statistics import mean
 
 from dateutil import parser
-from sqlalchemy import create_engine
+from sqlalchemy import DateTime, cast, create_engine, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -54,7 +54,6 @@ class DBInterface:
         :param parents_data: list of dict with keys: id, parentId
         """
         date: str = items_data[0]["date"]
-        formatted_date: datetime = items_data[0]["datetime"]
         with self.open_session(self.global_session) as session:
             insertion = insert(Item).values(items_data)
             session.execute(
@@ -78,7 +77,7 @@ class DBInterface:
                     (
                         session.query(Item)
                         .filter(Item.id.in_(ancestors_ids))
-                        .update({Item.date: date, Item.datetime: formatted_date})
+                        .update({Item.date: date})
                     )
             session.commit()
 
@@ -203,13 +202,19 @@ class DBInterface:
                     Item.type,
                     Item.price,
                     Item.date,
-                    Item.datetime,
+                    cast(Item.date, DateTime(timezone=True)).label("formatted_date"),
                     Parent.parentId,
                 )
                 .filter(
                     Item.type == "OFFER",
-                    Item.datetime >= date_since,
-                    Item.datetime <= date,
+                    text(
+                        f"CAST({Item.date} AS TIMESTAMP WITH TIME ZONE) >= "
+                        f"CAST('{date_since}' AS TIMESTAMP WITH TIME ZONE)"
+                    ),
+                    text(
+                        f"CAST({Item.date} AS TIMESTAMP WITH TIME ZONE) <= "
+                        f"CAST('{date}' AS TIMESTAMP WITH TIME ZONE)"
+                    ),
                 )
                 .join(Parent, Parent.id == Item.id, isouter=True)
             ).all()

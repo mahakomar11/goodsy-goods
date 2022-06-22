@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import Union
 from uuid import UUID
 
-from dateutil import parser
 from fastapi.responses import JSONResponse
 
 from api.models import BadRequestError, NotFoundError, PostImportsRequest
@@ -48,7 +47,6 @@ class Core:
             if "price" not in item.keys():
                 item["price"] = None
             item["date"] = date
-            item["datetime"] = parser.parse(date)
             item["type"] = item["type"].value
 
             items_data.append({k: v for k, v in item.items() if k != "parentId"})
