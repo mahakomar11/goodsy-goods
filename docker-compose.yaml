@@ -16,7 +16,7 @@ services:
       - goodsy-goods
     ports:
       - "80:80"
-    command: uvicorn api.app:app --host 0.0.0.0 --port 80
+    command: gunicorn -k uvicorn.workers.UvicornWorker -w 4 -b :80 api.main:app --timeout 999 --keep-alive 999
     depends_on:
       - dbpostgres
 
