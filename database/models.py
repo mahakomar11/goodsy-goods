@@ -1,3 +1,6 @@
+"""
+Module with models of tables in database and errors.
+"""
 from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID as postgressUUID
 from sqlalchemy.ext.declarative import declarative_base

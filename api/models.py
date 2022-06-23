@@ -1,3 +1,6 @@
+"""
+Module with Pydantic models used for validation and description of requests and responses.
+"""
 from enum import Enum
 from typing import ForwardRef, List, Optional, Union
 from uuid import UUID

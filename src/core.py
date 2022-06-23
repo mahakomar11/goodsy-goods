@@ -1,5 +1,8 @@
+"""
+Module with Core class that handles all requests.
+"""
 from datetime import datetime
-from typing import Union
+from typing import Optional, Union
 from uuid import UUID
 
 from fastapi.responses import JSONResponse
@@ -10,6 +13,9 @@ from database.models import DatabaseErrorInternal
 
 
 def validate_isoformat(date: str):
+    """
+    Function that checks if date in ISO format.
+    """
     if not isinstance(date, str):
         raise TypeError("Date should be string")
     try:
@@ -41,13 +47,13 @@ class Core:
             items_data - list of dicts with keys 'id', 'name', 'price', 'type'
             parents_data - list of dict with keys 'id', 'parentId'
         """
-        items_data = list()
-        parents_data = list()
+        items_data: list[dict] = list()
+        parents_data: list[dict] = list()
         for item in items:
             if "price" not in item.keys():
                 item["price"] = None
-            item["date"] = date
-            item["type"] = item["type"].value
+            item["date"]: str = date
+            item["type"]: str = item["type"].value
 
             items_data.append({k: v for k, v in item.items() if k != "parentId"})
             parents_data.append(dict(id=item["id"], parentId=item["parentId"]))
@@ -62,7 +68,8 @@ class Core:
         :param items_to_post: Pydantic model of {'item': list of items, 'updateTime': datetime in ISO 8601 format}
         :return:
             None, if posting succeeded,
-                or BadRequestError, if there are duplicated ids in request or attempt to update type of item
+                or JSONResponse with BadRequestError, if there are duplicated ids in request
+                or attempt to update type of item
         """
         items_to_post = items_to_post.dict()
         items: list[dict] = items_to_post["items"]
@@ -75,7 +82,7 @@ class Core:
                 status_code=400, content=BadRequestError(message=str(e)).dict()
             )
 
-        items_ids: list[str] = [item["id"] for item in items]
+        items_ids: list[UUID] = [item["id"] for item in items]
         if len(items_ids) != len(set(items_ids)):
             return JSONResponse(
                 status_code=400,
@@ -100,10 +107,10 @@ class Core:
 
         :param id: UUID of item
         :return: None, if deleting succeeded,
-            or NotFoundError, if there is no item with id in database
+            or JSONResponse with NotFoundError, if there is no item with id in database
         """
         try:
-            self.database.delete_item(str(id))
+            self.database.delete_item(id)
         except DatabaseErrorInternal:
             return JSONResponse(
                 status_code=404, content=NotFoundError(message="Item not found").dict()
@@ -115,10 +122,10 @@ class Core:
 
         :param id: UUID of item
         :return: tree with item information and information about its successors,
-            or NotFoundError, if there is no item with id in database
+            or JSONResponse with NotFoundError, if there is no item with id in database
         """
         try:
-            return self.database.get_item(str(id))
+            return self.database.get_item(id)
         except DatabaseErrorInternal:
             return JSONResponse(
                 status_code=404, content=NotFoundError(message="Item not found").dict()
@@ -139,5 +146,29 @@ class Core:
             )
         return {"items": self.database.get_updated_items(str(date))}
 
-    def get_statistics(self, id: UUID, date_start: str, date_end: str):
-        return {"items": self.database.get_statistics(id, date_start, date_end)}
+    def get_statistics(
+        self, id: UUID, date_start: Optional[str], date_end: Optional[str]
+    ):
+        """
+
+        :param id:
+        :param date_start:
+        :param date_end:
+        :return:
+        """
+        for date in [date_start, date_end]:
+            if date is None:
+                continue
+            try:
+                validate_isoformat(date)
+            except (TypeError, ValueError) as e:
+                return JSONResponse(
+                    status_code=400, content=BadRequestError(message=str(e)).dict()
+                )
+
+        try:
+            return {"items": self.database.get_statistics(id, date_start, date_end)}
+        except DatabaseErrorInternal:
+            return JSONResponse(
+                status_code=404, content=NotFoundError(message="Item not found").dict()
+            )

@@ -1,18 +1,37 @@
+"""
+Module with database interface class.
+"""
 import contextlib
 from datetime import datetime, timedelta
+from math import floor
 from statistics import mean
-from typing import Optional
+from typing import Optional, Union
+from uuid import UUID
 
 from dateutil import parser
 from sqlalchemy import create_engine, func, text
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.dialects.postgresql.dml import Insert
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm.query import Query
+from sqlalchemy.sql.selectable import Subquery
 
 from database.models import Base, DatabaseErrorInternal, Item, Parent, Stats
 
 
 class DBInterface:
-    def __init__(self, user, password, database_name, host, port):
+    """
+    Class that provides methods for handling data in database.
+    """
+
+    def __init__(
+        self,
+        user: str,
+        password: str,
+        database_name: str,
+        host: str,
+        port: Union[str, int],
+    ):
         engine = create_engine(
             f"postgresql://{user}:{password}@{host}:{port}/{database_name}"
         )
@@ -33,15 +52,18 @@ class DBInterface:
         yield session
         session.close()
 
-    def check_items_type(self, items_data: list):
+    def check_items_type(self, items_data: list[dict]) -> None:
+        """
+        Check if any of items from items_data exists in table Item with different type.
+
+        :param items_data: list of dict with keys id, name, type, price, date
+        """
         with self.open_session(self.global_session) as session:
             for item in items_data:
-                item_in_db: Item = session.get(Item, item["id"])
+                item_in_db: Optional[Item] = session.get(Item, item["id"])
                 if not item_in_db:
                     continue
                 if item["type"] != item_in_db.type:
-                    print(item["type"])
-                    print(item_in_db.type)
                     raise DatabaseErrorInternal(
                         f"Item with {item_in_db.id} exists in database as {item_in_db.type}. "
                         f"Changing type is prohibited."
@@ -56,16 +78,18 @@ class DBInterface:
         """
         date: str = items_data[0]["date"]
         with self.open_session(self.global_session) as session:
-            items_ids = {item["id"] for item in items_data}
-            parents_ids = {p["parentId"] for p in parents_data if p["parentId"]}
+            items_ids: set[UUID] = {item["id"] for item in items_data}
+            parents_ids: set[UUID] = {
+                p["parentId"] for p in parents_data if p["parentId"]
+            }
 
-            ancestors_ids = set()
+            ancestors_ids: set[UUID] = set()
             if len(parents_ids) > 0:
-                ancestors_ids = self._get_all_ancestors(
+                ancestors_ids: set[UUID] = self._get_all_ancestors(
                     session, parents_ids, parents_ids
                 )
             # Update Item table
-            insertion = insert(Item).values(items_data)
+            insertion: Insert = insert(Item).values(items_data)
             session.execute(
                 insertion.on_conflict_do_update(
                     index_elements=[Item.id], set_=insertion.excluded
@@ -73,7 +97,7 @@ class DBInterface:
             )
             # Update Parent table
             if len(parents_data) != 0:
-                insertion = insert(Parent).values(parents_data)
+                insertion: Insert = insert(Parent).values(parents_data)
                 session.execute(
                     insertion.on_conflict_do_update(
                         index_elements=[Parent.id], set_=insertion.excluded
@@ -87,8 +111,8 @@ class DBInterface:
                     .update({Item.date: date})
                 )
             # Add all rows that changed to statistics
-            changed_ids = ancestors_ids | items_ids
-            select_changed = (
+            changed_ids: set[UUID] = ancestors_ids | items_ids
+            select_changed: Query = (
                 session.query(
                     Item.id,
                     Item.name,
@@ -107,9 +131,11 @@ class DBInterface:
             )
             session.commit()
 
-    def _get_all_ancestors(self, session, current_parents_ids: set, all_ancestors: set):
+    def _get_all_ancestors(
+        self, session, current_parents_ids: set[UUID], all_ancestors: set[UUID]
+    ) -> set[UUID]:
         """
-        Recursive method for getting ids of all ancestors of parents_ids
+        Recursive method for getting ids of all ancestors of parents_ids.
 
         :param session: opened db-session
         :param parents_ids: set of UUIDs of
@@ -118,44 +144,44 @@ class DBInterface:
         next_parents: list[Parent] = (
             session.query(Parent).filter(Parent.id.in_(current_parents_ids)).all()
         )
-        next_parents_ids = {p.parentId for p in next_parents if p.parentId}
-        new_ids = next_parents_ids - all_ancestors
+        next_parents_ids: set[UUID] = {p.parentId for p in next_parents if p.parentId}
+        new_ids: set[UUID] = next_parents_ids - all_ancestors
         if len(new_ids) > 0:
             all_ancestors.update(new_ids)
             self._get_all_ancestors(session, new_ids, all_ancestors)
         return all_ancestors
 
-    def delete_item(self, id: str) -> None:
+    def delete_item(self, id: UUID) -> None:
         """
         Delete item with all its children from database.
 
         :param id: UUID of element to delete
         """
         with self.open_session(self.global_session) as session:
-            item: Item = session.get(Item, id)
+            item: Optional[Item] = session.get(Item, id)
             if not item:
                 raise DatabaseErrorInternal(f"Item {id} not found in database")
 
             self._delete_with_children(session, id)
             session.commit()
 
-    def _delete_with_children(self, session: Session, parent_id: str) -> None:
+    def _delete_with_children(self, session: Session, parent_id: UUID) -> None:
         """
         Recursive method for deleting item and its subtree.
 
         :param session: opened db-session
         :param parent_id: UUID of element to delete
         """
-        parent: Parent = session.get(Parent, parent_id)
+        parent: Optional[Parent] = session.get(Parent, parent_id)
         if parent:
             session.delete(parent)
-        children_query = session.query(Parent.id).filter_by(parentId=parent_id)
+        children_query: Query = session.query(Parent.id).filter_by(parentId=parent_id)
         for row in children_query.all():
             self._delete_with_children(session, row[0])
         session.delete(session.get(Item, parent_id))
         session.query(Stats).filter_by(id=parent_id).delete()
 
-    def get_item(self, id: str) -> dict:
+    def get_item(self, id: UUID) -> dict:
         """
         Get dict with item and all its subtree.
 
@@ -163,7 +189,7 @@ class DBInterface:
         :return: item and all its subtree
         """
         with self.open_session(self.global_session) as session:
-            item: Item = session.get(Item, id)
+            item: Optional[Item] = session.get(Item, id)
             if not item:
                 raise DatabaseErrorInternal(f"Item {id} not found in database")
 
@@ -185,7 +211,7 @@ class DBInterface:
         :return:    tree - tree with children and calculated price
                     prices - list of prices of child offers
         """
-        children_query = (
+        children_query: Query = (
             session.query(
                 Parent.id, Parent.parentId, Item.name, Item.type, Item.date, Item.price
             )
@@ -209,7 +235,7 @@ class DBInterface:
 
         tree["children"] = children
         if len(prices) > 0:
-            tree["price"] = mean(prices)
+            tree["price"] = floor(mean(prices))
         return tree, prices
 
     def get_updated_items(self, date: str) -> list[dict]:
@@ -222,7 +248,7 @@ class DBInterface:
         date: datetime = parser.parse(date)
         date_since: datetime = date - timedelta(days=1)
         with self.open_session(self.global_session) as session:
-            updated_items = (
+            updated_items: list[Item] = (
                 session.query(
                     Item.id,
                     Item.name,
@@ -244,10 +270,11 @@ class DBInterface:
                 )
                 .join(Parent, Parent.id == Item.id, isouter=True)
             ).all()
+            print("f")
             return [dict(row._mapping) for row in updated_items]
 
     def get_statistics(
-        self, id: str, date_start: Optional[str], date_end: Optional[str]
+        self, id: UUID, date_start: Optional[str], date_end: Optional[str]
     ) -> list[dict]:
         """
         Collect statistic of item with changes of price.
@@ -258,6 +285,11 @@ class DBInterface:
         :return: list of item's info from different date
         """
         with self.open_session(self.global_session) as session:
+            item: Optional[Item] = session.get(Item, id)
+            if not item:
+                raise DatabaseErrorInternal(f"Item {id} not found in database")
+
+            # Get all rows in Stats table for item with id and date in interval
             if date_start and date_end:
                 item_rows: list[Stats] = (
                     session.query(Stats)
@@ -303,6 +335,7 @@ class DBInterface:
                     session.query(Stats).filter(Stats.id == id).all()
                 )
 
+            # Calculate mean price for category
             answer: list[dict] = list()
             for row in item_rows:
                 row_dict = row.dict()
@@ -311,7 +344,7 @@ class DBInterface:
                         session, row.id, row.date
                     )
                     if len(prices) > 0:
-                        row_dict["price"] = mean(prices)
+                        row_dict["price"] = floor(mean(prices))
                 answer.append(row_dict)
             return answer
 
@@ -326,7 +359,8 @@ class DBInterface:
         :param date: date, when parent_id added
         :return: list of child prices
         """
-        sub_query = (
+        # Get last update date for all direct children of parent_id that is not later than parent's date
+        sub_query: Subquery = (
             session.query(
                 Stats.id,
                 func.max(text("CAST(stats.date AS TIMESTAMP WITH TIME ZONE)")).label(
@@ -343,6 +377,7 @@ class DBInterface:
             .group_by(Stats.id)
             .subquery()
         )
+        # Get all fields of direct children that were updated the closest to parent's date
         children: list[Stats] = (
             session.query(Stats)
             .join(
@@ -355,9 +390,10 @@ class DBInterface:
             )
             .all()
         )
+        # Collect prices of all successor
         prices: list[int] = list()
         for child in children:
-            price = child.price
+            price: Optional[int] = child.price
             if price:
                 prices.append(price)
             else:

@@ -1,3 +1,6 @@
+"""
+Module with FastAPI app.
+"""
 from typing import Optional, Union
 from uuid import UUID
 
