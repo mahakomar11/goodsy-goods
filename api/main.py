@@ -122,7 +122,7 @@ def get_node_statistic(
     date_start: Optional[str] = Query(None, alias="dateStart"),
     date_end: Optional[str] = Query(None, alias="dateEnd"),
 ):
-    pass
+    return core.get_statistics(id, date_start, date_end)
 
 
 if __name__ == "__main__":

@@ -1,13 +1,14 @@
 import contextlib
 from datetime import datetime, timedelta
 from statistics import mean
+from typing import Optional
 
 from dateutil import parser
-from sqlalchemy import DateTime, cast, create_engine, text
+from sqlalchemy import create_engine, func, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, sessionmaker
 
-from database.models import Base, DatabaseErrorInternal, Item, Parent
+from database.models import Base, DatabaseErrorInternal, Item, Parent, Stats
 
 
 class DBInterface:
@@ -55,13 +56,22 @@ class DBInterface:
         """
         date: str = items_data[0]["date"]
         with self.open_session(self.global_session) as session:
+            items_ids = {item["id"] for item in items_data}
+            parents_ids = {p["parentId"] for p in parents_data if p["parentId"]}
+
+            ancestors_ids = set()
+            if len(parents_ids) > 0:
+                ancestors_ids = self._get_all_ancestors(
+                    session, parents_ids, parents_ids
+                )
+            # Update Item table
             insertion = insert(Item).values(items_data)
             session.execute(
                 insertion.on_conflict_do_update(
                     index_elements=[Item.id], set_=insertion.excluded
                 )
             )
-
+            # Update Parent table
             if len(parents_data) != 0:
                 insertion = insert(Parent).values(parents_data)
                 session.execute(
@@ -69,16 +79,32 @@ class DBInterface:
                         index_elements=[Parent.id], set_=insertion.excluded
                     )
                 )
-                parents_ids = {p["parentId"] for p in parents_data if p["parentId"]}
-                if len(parents_ids) > 0:
-                    ancestors_ids = self._get_all_ancestors(
-                        session, parents_ids, parents_ids
-                    )
-                    (
-                        session.query(Item)
-                        .filter(Item.id.in_(ancestors_ids))
-                        .update({Item.date: date})
-                    )
+            # Update date of all ancestors
+            if len(ancestors_ids) != 0:
+                (
+                    session.query(Item)
+                    .filter(Item.id.in_(ancestors_ids))
+                    .update({Item.date: date})
+                )
+            # Add all rows that changed to statistics
+            changed_ids = ancestors_ids | items_ids
+            select_changed = (
+                session.query(
+                    Item.id,
+                    Item.name,
+                    Item.type,
+                    Item.price,
+                    Item.date,
+                    Parent.parentId,
+                )
+                .filter(Item.id.in_(changed_ids))
+                .join(Parent, Parent.id == Item.id, isouter=True)
+            )
+            session.execute(
+                insert(Stats).from_select(
+                    ["id", "name", "type", "price", "date", "parentId"], select_changed
+                )
+            )
             session.commit()
 
     def _get_all_ancestors(self, session, current_parents_ids: set, all_ancestors: set):
@@ -127,6 +153,7 @@ class DBInterface:
         for row in children_query.all():
             self._delete_with_children(session, row[0])
         session.delete(session.get(Item, parent_id))
+        session.query(Stats).filter_by(id=parent_id).delete()
 
     def get_item(self, id: str) -> dict:
         """
@@ -202,7 +229,6 @@ class DBInterface:
                     Item.type,
                     Item.price,
                     Item.date,
-                    cast(Item.date, DateTime(timezone=True)).label("formatted_date"),
                     Parent.parentId,
                 )
                 .filter(
@@ -219,3 +245,125 @@ class DBInterface:
                 .join(Parent, Parent.id == Item.id, isouter=True)
             ).all()
             return [dict(row._mapping) for row in updated_items]
+
+    def get_statistics(
+        self, id: str, date_start: Optional[str], date_end: Optional[str]
+    ) -> list[dict]:
+        """
+        Collect statistic of item with changes of price.
+
+        :param id: UUID of element
+        :param date_start: date statistics is collecting from, if None, collect from the most beginning
+        :param date_end: date statistics is collecting to, if None, collect to now
+        :return: list of item's info from different date
+        """
+        with self.open_session(self.global_session) as session:
+            if date_start and date_end:
+                item_rows: list[Stats] = (
+                    session.query(Stats)
+                    .filter(
+                        Stats.id == id,
+                        text(
+                            f"CAST({Stats.date} AS TIMESTAMP WITH TIME ZONE) >= "
+                            f"CAST('{date_start}' AS TIMESTAMP WITH TIME ZONE)"
+                        ),
+                        text(
+                            f"CAST({Stats.date} AS TIMESTAMP WITH TIME ZONE) < "
+                            f"CAST('{date_end}' AS TIMESTAMP WITH TIME ZONE)"
+                        ),
+                    )
+                    .all()
+                )
+            elif date_start:
+                item_rows: list[Stats] = (
+                    session.query(Stats)
+                    .filter(
+                        Stats.id == id,
+                        text(
+                            f"CAST({Stats.date} AS TIMESTAMP WITH TIME ZONE) >= "
+                            f"CAST('{date_start}' AS TIMESTAMP WITH TIME ZONE)"
+                        ),
+                    )
+                    .all()
+                )
+            elif date_end:
+                item_rows: list[Stats] = (
+                    session.query(Stats)
+                    .filter(
+                        Stats.id == id,
+                        text(
+                            f"CAST({Stats.date} AS TIMESTAMP WITH TIME ZONE) < "
+                            f"CAST('{date_end}' AS TIMESTAMP WITH TIME ZONE)"
+                        ),
+                    )
+                    .all()
+                )
+            else:
+                item_rows: list[Stats] = (
+                    session.query(Stats).filter(Stats.id == id).all()
+                )
+
+            answer: list[dict] = list()
+            for row in item_rows:
+                row_dict = row.dict()
+                if not row.price:
+                    prices: list[int] = self._get_child_prices(
+                        session, row.id, row.date
+                    )
+                    if len(prices) > 0:
+                        row_dict["price"] = mean(prices)
+                answer.append(row_dict)
+            return answer
+
+    def _get_child_prices(
+        self, session: Session, parent_id: str, date: str
+    ) -> list[int]:
+        """
+        Recursive method for getting prices of child items.
+
+        :param session: opened db-session
+        :param parent_id: UUID of element
+        :param date: date, when parent_id added
+        :return: list of child prices
+        """
+        sub_query = (
+            session.query(
+                Stats.id,
+                func.max(text("CAST(stats.date AS TIMESTAMP WITH TIME ZONE)")).label(
+                    "last_date"
+                ),
+            )
+            .filter(
+                Stats.parentId == parent_id,
+                text(
+                    f"CAST({Stats.date} AS TIMESTAMP WITH TIME ZONE) <= "
+                    f"CAST('{date}' AS TIMESTAMP WITH TIME ZONE)"
+                ),
+            )
+            .group_by(Stats.id)
+            .subquery()
+        )
+        children: list[Stats] = (
+            session.query(Stats)
+            .join(
+                sub_query,
+                (Stats.id == sub_query.c.id)
+                & (
+                    text(f"CAST({Stats.date} AS TIMESTAMP WITH TIME ZONE)")
+                    == sub_query.c.last_date
+                ),
+            )
+            .all()
+        )
+        prices: list[int] = list()
+        for child in children:
+            price = child.price
+            if price:
+                prices.append(price)
+            else:
+                child_prices: list[int] = self._get_child_prices(
+                    session, child.id, child.date
+                )
+                prices.extend(child_prices)
+
+        return prices

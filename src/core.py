@@ -138,3 +138,6 @@ class Core:
                 status_code=400, content=BadRequestError(message=str(e)).dict()
             )
         return {"items": self.database.get_updated_items(str(date))}
+
+    def get_statistics(self, id: UUID, date_start: str, date_end: str):
+        return {"items": self.database.get_statistics(id, date_start, date_end)}

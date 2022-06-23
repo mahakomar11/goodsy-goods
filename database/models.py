@@ -28,6 +28,21 @@ class Parent(Base):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
 
+class Stats(Base):
+    __tablename__ = "stats"
+
+    stat_id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(postgressUUID(as_uuid=True))
+    name = Column(String(180), nullable=False)
+    type = Column(String(180), nullable=False)
+    price = Column(Integer, nullable=True)
+    date = Column(String(180), nullable=False)
+    parentId = Column(postgressUUID(as_uuid=True), nullable=True)
+
+    def dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+
 class DatabaseErrorInternal(Exception):
     def __init__(self, detail: str):
         super().__init__(detail)
