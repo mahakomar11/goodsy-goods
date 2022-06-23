@@ -55,6 +55,11 @@ async def validation_exception_handler(request, exc: RequestValidationError):
     tags=["Базовые задачи"],
 )
 def post_imports(items_to_post: PostImportsRequest):
+    """
+    Импортирует новые товары и/или категории.
+    Тип элемента может быть OFFER или CATEGORY.
+    Если тип элемента CATEGORY, поле price - пустое.
+    """
     return core.post_imports(items_to_post)
 
 
@@ -70,6 +75,9 @@ def post_imports(items_to_post: PostImportsRequest):
     tags=["Базовые задачи"],
 )
 def delete_id(id: UUID):
+    """
+    Удаляет элемент по id. Если элемента с id не существует, возвращает ошибку 404.
+    """
     return core.delete_id(id)
 
 
@@ -85,6 +93,10 @@ def delete_id(id: UUID):
     tags=["Базовые задачи"],
 )
 def get_node(id: UUID):
+    """
+    Находит элемент по id. Если элемента с id не существует, возвращает ошибку 404.
+    Для категории в поле children возвращается дерево дочерних элементов.
+    """
     return core.get_node(id)
 
 
@@ -99,6 +111,10 @@ def get_node(id: UUID):
     tags=["Дополнительные задачи"],
 )
 def get_sales(date: str):
+    """
+    Получение списка товаров, цена которых была обновлена за последние 24 часа включительно [date - 24h, date]
+    от времени переданном в запросе.
+    """
     return core.get_sales(date)
 
 
@@ -122,6 +138,12 @@ def get_node_statistic(
     date_start: Optional[str] = Query(None, alias="dateStart"),
     date_end: Optional[str] = Query(None, alias="dateEnd"),
 ):
+    """
+    Получение статистики (истории обновлений) по товару/категории за заданный полуинтервал [dateStart, dateEnd).
+    Если не указана dateStart/dateEnd, начальной/конечной датой является первое/последнее обновление элемента.
+    Для категории цена рассчитывается как средняя цена всех товаров-потомков,
+    существующих на момент обновления категории.
+    """
     return core.get_statistics(id, date_start, date_end)
 
 
