@@ -248,29 +248,41 @@ class DBInterface:
         date: datetime = parser.parse(date)
         date_since: datetime = date - timedelta(days=1)
         with self.open_session(self.global_session) as session:
+            updated_stats: list[Stats] = (
+                session.query(Stats.id)
+                .group_by(Stats.id, Stats.type)
+                .having(
+                    (func.count(Stats.id) > 1)
+                    & (Stats.type == "OFFER")
+                    & (
+                        text(
+                            f"MAX(CAST({Stats.date} AS TIMESTAMP WITH TIME ZONE)) >= "
+                            f"CAST('{date_since}' AS TIMESTAMP WITH TIME ZONE)"
+                        )
+                    )
+                    & (
+                        text(
+                            f"MAX(CAST({Stats.date} AS TIMESTAMP WITH TIME ZONE)) <= "
+                            f"CAST('{date}' AS TIMESTAMP WITH TIME ZONE)"
+                        )
+                    )
+                )
+                .all()
+            )
+            updated_ids: list[UUID] = [row.id for row in updated_stats]
             updated_items: list[Item] = (
                 session.query(
                     Item.id,
                     Item.name,
                     Item.type,
-                    Item.price,
                     Item.date,
+                    Item.price,
                     Parent.parentId,
                 )
-                .filter(
-                    Item.type == "OFFER",
-                    text(
-                        f"CAST({Item.date} AS TIMESTAMP WITH TIME ZONE) >= "
-                        f"CAST('{date_since}' AS TIMESTAMP WITH TIME ZONE)"
-                    ),
-                    text(
-                        f"CAST({Item.date} AS TIMESTAMP WITH TIME ZONE) <= "
-                        f"CAST('{date}' AS TIMESTAMP WITH TIME ZONE)"
-                    ),
-                )
-                .join(Parent, Parent.id == Item.id, isouter=True)
-            ).all()
-            print("f")
+                .where(Item.id.in_(updated_ids))
+                .join(Parent, Item.id == Parent.id, isouter=True)
+                .all()
+            )
             return [dict(row._mapping) for row in updated_items]
 
     def get_statistics(
