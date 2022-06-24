@@ -8,7 +8,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-API_BASEURL = "http://localhost:8000"
+API_BASEURL = "https://meals-2046.usr.yandex-academy.ru"
 
 ROOT_ID = "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1"
 
@@ -86,6 +86,18 @@ IMPORT_BATCHES = [
         ],
         "updateDate": "2022-02-03T15:00:00.000Z",
     },
+    {
+        "items": [
+            {
+                "type": "OFFER",
+                "name": 'Goldstar 65" LED UHD LOL Very Very Smart',
+                "id": "73bc3b36-02d1-4245-ab35-3106c9ee1c65",
+                "parentId": "1cc0129a-2bfe-474c-9ee6-d435bf5fc8f2",
+                "price": 69999,
+            }
+        ],
+        "updateDate": "2022-02-04T15:00:00.000Z",
+    },
 ]
 
 EXPECTED_TREE = {
@@ -94,7 +106,7 @@ EXPECTED_TREE = {
     "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
     "price": 58599,
     "parentId": None,
-    "date": "2022-02-03T15:00:00.000Z",
+    "date": "2022-02-04T15:00:00.000Z",
     "children": [
         {
             "type": "CATEGORY",
@@ -102,7 +114,7 @@ EXPECTED_TREE = {
             "id": "1cc0129a-2bfe-474c-9ee6-d435bf5fc8f2",
             "parentId": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
             "price": 50999,
-            "date": "2022-02-03T15:00:00.000Z",
+            "date": "2022-02-04T15:00:00.000Z",
             "children": [
                 {
                     "type": "OFFER",
@@ -124,11 +136,11 @@ EXPECTED_TREE = {
                 },
                 {
                     "type": "OFFER",
-                    "name": 'Goldstar 65" LED UHD LOL Very Smart',
+                    "name": 'Goldstar 65" LED UHD LOL Very Very Smart',
                     "id": "73bc3b36-02d1-4245-ab35-3106c9ee1c65",
                     "parentId": "1cc0129a-2bfe-474c-9ee6-d435bf5fc8f2",
                     "price": 69999,
-                    "date": "2022-02-03T15:00:00.000Z",
+                    "date": "2022-02-04T15:00:00.000Z",
                     "children": None,
                 },
             ],
@@ -162,6 +174,64 @@ EXPECTED_TREE = {
             ],
         },
     ],
+}
+
+EXPECTED_SALES = {
+    "items": [
+        {
+            "id": "73bc3b36-02d1-4245-ab35-3106c9ee1c65",
+            "name": 'Goldstar 65" LED UHD LOL Very Very Smart',
+            "parentId": "1cc0129a-2bfe-474c-9ee6-d435bf5fc8f2",
+            "type": "OFFER",
+            "price": 69999,
+            "date": "2022-02-04T15:00:00.000Z",
+        }
+    ]
+}
+
+EXPECTED_STATS = {
+    "items": [
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": None,
+            "date": "2022-02-01T12:00:00.000Z",
+        },
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": 69999,
+            "date": "2022-02-02T12:00:00.000Z",
+        },
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": 55749,
+            "date": "2022-02-03T12:00:00.000Z",
+        },
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": 58599,
+            "date": "2022-02-03T15:00:00.000Z",
+        },
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": 58599,
+            "date": "2022-02-04T15:00:00.000Z",
+        },
+    ]
 }
 
 
@@ -238,21 +308,28 @@ def test_nodes():
 
 
 def test_sales():
-    params = urllib.parse.urlencode({"date": "2022-02-04T00:00:00.000Z"})
+    params = urllib.parse.urlencode({"date": "2022-02-04T15:00:00.000Z"})
     status, response = request(f"/sales?{params}", json_response=True)
     assert status == 200, f"Expected HTTP status code 200, got {status}"
+    if response != EXPECTED_SALES:
+        print_diff(EXPECTED_SALES, response)
+        print("Response sales doesn't match expected sales.")
+        sys.exit(1)
+
     print("Test sales passed.")
 
 
 def test_stats():
-    params = urllib.parse.urlencode(
-        {"dateStart": "2022-02-01T00:00:00.000Z", "dateEnd": "2022-02-03T00:00:00.000Z"}
-    )
-    status, response = request(
-        f"/node/{ROOT_ID}/statistic?{params}", json_response=True
-    )
+    # params = urllib.parse.urlencode(
+    #     {"dateStart": None, "dateEnd": None}
+    # )
+    status, response = request(f"/node/{ROOT_ID}/statistic", json_response=True)
 
     assert status == 200, f"Expected HTTP status code 200, got {status}"
+    if response != EXPECTED_STATS:
+        print_diff(EXPECTED_STATS, response)
+        print("Response stats doesn't match expected stats.")
+        sys.exit(1)
     print("Test stats passed.")
 
 
