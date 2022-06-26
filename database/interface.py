@@ -244,16 +244,16 @@ class DBInterface:
         date_to: datetime = parser.parse(date)
         date_since: datetime = date_to - timedelta(days=1)
 
-        # Get ids of offers that were updated (count(id) > 1)
-        # and the last date lies in interval [date_since; date],
+        # Get ids of offers that were updated (count(id) > 1) before date_to
+        # and the last date of that update is after date_since
         # then retrieve offers with these ids from table "item" and "parent"
         query = """
             WITH updated_ids AS
                 (SELECT id
                 FROM stats
+                WHERE date::timestamp with time zone <= :date_to
                 GROUP BY id, type
                 HAVING count(id) > 1 AND type = 'OFFER'
-                    AND max(date::timestamp with time zone) <= :date_to
                     AND max(date::timestamp with time zone) >= :date_since)
             SELECT item.id AS id, name, type, price, date, "parentId"
             FROM item

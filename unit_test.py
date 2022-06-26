@@ -98,23 +98,35 @@ IMPORT_BATCHES = [
         ],
         "updateDate": "2022-02-04T15:00:00.000Z",
     },
+    {
+        "items": [
+            {
+                "type": "OFFER",
+                "name": 'Goldstar 65"',
+                "id": "73bc3b36-02d1-4245-ab35-3106c9ee1c65",
+                "parentId": "1cc0129a-2bfe-474c-9ee6-d435bf5fc8f2",
+                "price": 50000,
+            }
+        ],
+        "updateDate": "2022-02-05T15:00:00.000Z",
+    },
 ]
 
 EXPECTED_TREE = {
     "type": "CATEGORY",
     "name": "Товары",
     "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
-    "price": 58599,
+    "price": 54599,
     "parentId": None,
-    "date": "2022-02-04T15:00:00.000Z",
+    "date": "2022-02-05T15:00:00.000Z",
     "children": [
         {
             "type": "CATEGORY",
             "name": "Телевизоры",
             "id": "1cc0129a-2bfe-474c-9ee6-d435bf5fc8f2",
             "parentId": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
-            "price": 50999,
-            "date": "2022-02-04T15:00:00.000Z",
+            "price": 44332,
+            "date": "2022-02-05T15:00:00.000Z",
             "children": [
                 {
                     "type": "OFFER",
@@ -136,11 +148,11 @@ EXPECTED_TREE = {
                 },
                 {
                     "type": "OFFER",
-                    "name": 'Goldstar 65" LED UHD LOL Very Very Smart',
+                    "name": 'Goldstar 65"',
                     "id": "73bc3b36-02d1-4245-ab35-3106c9ee1c65",
                     "parentId": "1cc0129a-2bfe-474c-9ee6-d435bf5fc8f2",
-                    "price": 69999,
-                    "date": "2022-02-04T15:00:00.000Z",
+                    "price": 50000,
+                    "date": "2022-02-05T15:00:00.000Z",
                     "children": None,
                 },
             ],
@@ -180,11 +192,11 @@ EXPECTED_SALES = {
     "items": [
         {
             "id": "73bc3b36-02d1-4245-ab35-3106c9ee1c65",
-            "name": 'Goldstar 65" LED UHD LOL Very Very Smart',
+            "name": 'Goldstar 65"',
             "parentId": "1cc0129a-2bfe-474c-9ee6-d435bf5fc8f2",
             "type": "OFFER",
-            "price": 69999,
-            "date": "2022-02-04T15:00:00.000Z",
+            "price": 50000,
+            "date": "2022-02-05T15:00:00.000Z",
         }
     ]
 }
@@ -230,6 +242,14 @@ EXPECTED_STATS = {
             "type": "CATEGORY",
             "price": 58599,
             "date": "2022-02-04T15:00:00.000Z",
+        },
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": 54599,
+            "date": "2022-02-05T15:00:00.000Z",
         },
     ]
 }
