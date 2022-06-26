@@ -249,52 +249,36 @@ class DBInterface:
             tree["price"] = floor(mean(prices))
         return tree, prices
 
-    def get_updated_items(self, date: str) -> list[dict]:
+    async def get_updated_items(self, date: str) -> list[dict]:
         """
         Get offers that were updated in interval [date - 1d, date].
 
         :param date: string of date in ISO 8601 format
         :return: list with offers
         """
-        date: datetime = parser.parse(date)
-        date_since: datetime = date - timedelta(days=1)
-        with self.open_session(self.global_session) as session:
-            updated_stats: list[Stats] = (
-                session.query(Stats.id)
-                .group_by(Stats.id, Stats.type)
-                .having(
-                    (func.count(Stats.id) > 1)
-                    & (Stats.type == "OFFER")
-                    & (
-                        text(
-                            f"MAX(CAST({Stats.date} AS TIMESTAMP WITH TIME ZONE)) >= "
-                            f"CAST('{date_since}' AS TIMESTAMP WITH TIME ZONE)"
-                        )
-                    )
-                    & (
-                        text(
-                            f"MAX(CAST({Stats.date} AS TIMESTAMP WITH TIME ZONE)) <= "
-                            f"CAST('{date}' AS TIMESTAMP WITH TIME ZONE)"
-                        )
-                    )
-                )
-                .all()
-            )
-            updated_ids: list[UUID] = [row.id for row in updated_stats]
-            updated_items: list[Item] = (
-                session.query(
-                    Item.id,
-                    Item.name,
-                    Item.type,
-                    Item.date,
-                    Item.price,
-                    Parent.parentId,
-                )
-                .where(Item.id.in_(updated_ids))
-                .join(Parent, Item.id == Parent.id, isouter=True)
-                .all()
-            )
-            return [dict(row._mapping) for row in updated_items]
+        date_to: datetime = parser.parse(date)
+        date_since: datetime = date_to - timedelta(days=1)
+
+        # Get ids of offers that were updated (count(id) > 1)
+        # and the last date lies in interval [date_since; date],
+        # then retrieve offers with these ids from table "item" and "parent"
+        query = """
+            WITH updated_ids AS
+                (SELECT id
+                FROM stats
+                GROUP BY id, type
+                HAVING count(id) > 1 AND type = 'OFFER'
+                    AND max(date::timestamp with time zone) <= :date_to
+                    AND max(date::timestamp with time zone) >= :date_since)
+            SELECT item.id AS id, name, type, price, date, "parentId"
+            FROM item
+            JOIN updated_ids ON item.id = updated_ids.id
+            LEFT JOIN parent ON item.id = parent.id
+        """
+        updated_items: list[Record] = await self.db.fetch_all(
+            query=query, values={"date_to": date_to, "date_since": date_since}
+        )
+        return [dict(row._mapping) for row in updated_items]
 
     def get_statistics(
         self, id: UUID, date_start: Optional[str], date_end: Optional[str]

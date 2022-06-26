@@ -123,12 +123,12 @@ async def get_node(id: UUID):
     },
     tags=["Дополнительные задачи"],
 )
-def get_sales(date: str):
+async def get_sales(date: str):
     """
     Получение списка товаров, цена которых была обновлена за последние 24 часа включительно [date - 24h, date]
     от времени переданном в запросе.
     """
-    return core.get_sales(date)
+    return await core.get_sales(date)
 
 
 @app.get(

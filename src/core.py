@@ -131,7 +131,7 @@ class Core:
                 status_code=404, content=NotFoundError(message="Item not found").dict()
             )
 
-    def get_sales(self, date: str) -> Union[dict, JSONResponse]:
+    async def get_sales(self, date: str) -> Union[dict, JSONResponse]:
         """
         Handler for getting items updated in interval [date - 1d, date].
 
@@ -144,7 +144,7 @@ class Core:
             return JSONResponse(
                 status_code=400, content=BadRequestError(message=str(e)).dict()
             )
-        return {"items": self.database.get_updated_items(str(date))}
+        return {"items": await self.database.get_updated_items(str(date))}
 
     def get_statistics(
         self, id: UUID, date_start: Optional[str], date_end: Optional[str]
