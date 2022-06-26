@@ -6,3 +6,4 @@ python-dotenv==0.20.0
 SQLAlchemy==1.4.37
 uvicorn==0.17.6
 gunicorn==20.1.0
+databases[asyncpg]==0.6.0
