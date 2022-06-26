@@ -11,14 +11,13 @@ from uuid import UUID
 import databases
 from databases.backends.postgres import Record
 from dateutil import parser
-from sqlalchemy import create_engine, func, text
+from sqlalchemy import create_engine, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.dialects.postgresql.dml import Insert
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.sql.expression import bindparam
-from sqlalchemy.sql.selectable import Subquery
 
-from database.models import Base, DatabaseErrorInternal, Item, Parent, Stats
+from database.models import Base, DatabaseErrorInternal, Item, Parent
 
 
 class DBInterface:
@@ -223,10 +222,10 @@ class DBInterface:
                     prices - list of prices of child offers
         """
         query = """
-        SELECT parent.id as id, "parentId", name, type, date, price
-        FROM item
-        JOIN parent ON parent.id = item.id
-        WHERE "parentId" = :parent_id
+            SELECT parent.id as id, "parentId", name, type, date, price
+            FROM item
+            JOIN parent ON parent.id = item.id
+            WHERE "parentId" = :parent_id
         """
         children_rows: list[Record] = await self.db.fetch_all(
             query=query, values={"parent_id": parent_id}
@@ -280,7 +279,7 @@ class DBInterface:
         )
         return [dict(row._mapping) for row in updated_items]
 
-    def get_statistics(
+    async def get_statistics(
         self, id: UUID, date_start: Optional[str], date_end: Optional[str]
     ) -> list[dict]:
         """
@@ -291,111 +290,82 @@ class DBInterface:
         :param date_end: date statistics is collecting to, if None, collect to now
         :return: list of item's info from different date
         """
-        with self.open_session(self.global_session) as session:
-            item: Optional[Item] = session.get(Item, id)
-            if not item:
-                raise DatabaseErrorInternal(f"Item {id} not found in database")
+        # Check if item in database
+        query = "SELECT * FROM item WHERE id = :id"
+        item: Optional[Record] = await self.db.fetch_one(query=query, values={"id": id})
+        if not item:
+            raise DatabaseErrorInternal(f"Item {id} not found in database")
 
-            # Get all rows in Stats table for item with id and date in interval
-            if date_start and date_end:
-                item_rows: list[Stats] = (
-                    session.query(Stats)
-                    .filter(
-                        Stats.id == id,
-                        text(
-                            f"CAST({Stats.date} AS TIMESTAMP WITH TIME ZONE) >= "
-                            f"CAST('{date_start}' AS TIMESTAMP WITH TIME ZONE)"
-                        ),
-                        text(
-                            f"CAST({Stats.date} AS TIMESTAMP WITH TIME ZONE) < "
-                            f"CAST('{date_end}' AS TIMESTAMP WITH TIME ZONE)"
-                        ),
-                    )
-                    .all()
-                )
-            elif date_start:
-                item_rows: list[Stats] = (
-                    session.query(Stats)
-                    .filter(
-                        Stats.id == id,
-                        text(
-                            f"CAST({Stats.date} AS TIMESTAMP WITH TIME ZONE) >= "
-                            f"CAST('{date_start}' AS TIMESTAMP WITH TIME ZONE)"
-                        ),
-                    )
-                    .all()
-                )
-            elif date_end:
-                item_rows: list[Stats] = (
-                    session.query(Stats)
-                    .filter(
-                        Stats.id == id,
-                        text(
-                            f"CAST({Stats.date} AS TIMESTAMP WITH TIME ZONE) < "
-                            f"CAST('{date_end}' AS TIMESTAMP WITH TIME ZONE)"
-                        ),
-                    )
-                    .all()
-                )
-            else:
-                item_rows: list[Stats] = (
-                    session.query(Stats).filter(Stats.id == id).all()
-                )
+        # Get all rows in Stats table for item with id and date in interval
+        if date_start and date_end:
+            query = """
+                SELECT * FROM stats
+                WHERE id = :id
+                    AND date::timestamp with time zone >= :date_start
+                    AND date::timestamp with time zone <= :date_end
+            """
+            values = {
+                "id": id,
+                "date_start": parser.parse(date_start),
+                "date_end": parser.parse(date_end),
+            }
+        elif date_start:
+            query = """
+                SELECT * FROM stats
+                WHERE id = :id
+                    AND date::timestamp with time zone >= :date_start
+            """
+            values = {"id": id, "date_start": parser.parse(date_start)}
+        elif date_end:
+            query = """
+                SELECT * FROM stats
+                WHERE id = :id
+                    AND date::timestamp with time zone <= :date_end
+            """
+            values = {"id": id, "date_end": parser.parse(date_end)}
+        else:
+            query = "SELECT * FROM stats WHERE id = :id"
+            values = {"id": id}
 
-            # Calculate mean price for category
-            answer: list[dict] = list()
-            for row in item_rows:
-                row_dict = row.dict()
-                if not row.price:
-                    prices: list[int] = self._get_child_prices(
-                        session, row.id, row.date
-                    )
-                    if len(prices) > 0:
-                        row_dict["price"] = floor(mean(prices))
-                answer.append(row_dict)
-            return answer
+        item_rows: list[Record] = await self.db.fetch_all(query=query, values=values)
 
-    def _get_child_prices(
-        self, session: Session, parent_id: str, date: str
-    ) -> list[int]:
+        # Calculate mean price for category
+        answer: list[dict] = list()
+        for row in item_rows:
+            row_dict = dict(row._mapping)
+            if not row.price:
+                prices: list[int] = await self._get_child_prices(row.id, row.date)
+                if len(prices) > 0:
+                    row_dict["price"] = floor(mean(prices))
+            answer.append(row_dict)
+        return answer
+
+    async def _get_child_prices(self, parent_id: str, parent_date: str) -> list[int]:
         """
         Recursive method for getting prices of child items.
 
-        :param session: opened db-session
         :param parent_id: UUID of element
-        :param date: date, when parent_id added
+        :param parent_date: date, when parent_id added
         :return: list of child prices
         """
-        # Get last update date for all direct children of parent_id that is not later than parent's date
-        sub_query: Subquery = (
-            session.query(
-                Stats.id,
-                func.max(text("CAST(stats.date AS TIMESTAMP WITH TIME ZONE)")).label(
-                    "last_date"
-                ),
+        # Get last update date (not later than parent_date) for all direct children of parent_id,
+        # then get all fields of direct children the closest to parent's date
+        query = """
+            WITH last_updated_children AS (
+                SELECT id, max(date::timestamp with time zone) as last_date
+                FROM stats
+                WHERE "parentId" = :parent_id
+                    AND date::timestamp with time zone <= :date
+                GROUP BY id
             )
-            .filter(
-                Stats.parentId == parent_id,
-                text(
-                    f"CAST({Stats.date} AS TIMESTAMP WITH TIME ZONE) <= "
-                    f"CAST('{date}' AS TIMESTAMP WITH TIME ZONE)"
-                ),
-            )
-            .group_by(Stats.id)
-            .subquery()
-        )
-        # Get all fields of direct children that were updated the closest to parent's date
-        children: list[Stats] = (
-            session.query(Stats)
-            .join(
-                sub_query,
-                (Stats.id == sub_query.c.id)
-                & (
-                    text(f"CAST({Stats.date} AS TIMESTAMP WITH TIME ZONE)")
-                    == sub_query.c.last_date
-                ),
-            )
-            .all()
+            SELECT stats.id AS id, price, date
+            FROM stats
+            JOIN last_updated_children ON stats.id = last_updated_children.id
+                AND stats.date::timestamp with time zone = last_updated_children.last_date
+        """
+        children: list[Record] = await self.db.fetch_all(
+            query=query,
+            values={"parent_id": parent_id, "date": parser.parse(parent_date)},
         )
         # Collect prices of all successor
         prices: list[int] = list()
@@ -404,8 +374,8 @@ class DBInterface:
             if price:
                 prices.append(price)
             else:
-                child_prices: list[int] = self._get_child_prices(
-                    session, child.id, child.date
+                child_prices: list[int] = await self._get_child_prices(
+                    child.id, child.date
                 )
                 prices.extend(child_prices)
 

@@ -146,7 +146,7 @@ async def get_sales(date: str):
     },
     tags=["Дополнительные задачи"],
 )
-def get_node_statistic(
+async def get_node_statistic(
     id: UUID,
     date_start: Optional[str] = Query(None, alias="dateStart"),
     date_end: Optional[str] = Query(None, alias="dateEnd"),
@@ -157,7 +157,7 @@ def get_node_statistic(
     Для категории цена рассчитывается как средняя цена всех товаров-потомков,
     существующих на момент обновления категории.
     """
-    return core.get_statistics(id, date_start, date_end)
+    return await core.get_statistics(id, date_start, date_end)
 
 
 if __name__ == "__main__":

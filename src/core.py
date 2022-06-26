@@ -146,7 +146,7 @@ class Core:
             )
         return {"items": await self.database.get_updated_items(str(date))}
 
-    def get_statistics(
+    async def get_statistics(
         self, id: UUID, date_start: Optional[str], date_end: Optional[str]
     ):
         """
@@ -167,7 +167,9 @@ class Core:
                 )
 
         try:
-            return {"items": self.database.get_statistics(id, date_start, date_end)}
+            return {
+                "items": await self.database.get_statistics(id, date_start, date_end)
+            }
         except DatabaseErrorInternal:
             return JSONResponse(
                 status_code=404, content=NotFoundError(message="Item not found").dict()
