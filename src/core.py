@@ -75,6 +75,12 @@ class Core:
         items: list[dict] = items_to_post["items"]
         date: str = items_to_post["updateDate"]
 
+        if len(items) == 0:
+            return JSONResponse(
+                status_code=400,
+                content=BadRequestError(message="Items cannot be empty").dict(),
+            )
+
         try:
             validate_isoformat(date)
         except (TypeError, ValueError) as e:

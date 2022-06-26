@@ -239,8 +239,11 @@ class DBInterface:
         Get offers that were updated in interval [date - 1d, date].
 
         :param date: string of date in ISO 8601 format
-        :return: list with offers
+        :return: list with offers that were updates between date - 1d and date
         """
+        # NOTE: method returns the current state of offer even if "date" is earlier than last update date,
+        # not the state of offer that was uploaded in [date - 1d, date],
+        # because the task don't give clear directives about this case.
         date_to: datetime = parser.parse(date)
         date_since: datetime = date_to - timedelta(days=1)
 
@@ -269,7 +272,7 @@ class DBInterface:
         self, id: UUID, date_start: Optional[str], date_end: Optional[str]
     ) -> list[dict]:
         """
-        Collect statistic of item with changes of price.
+        Collect statistic of item with changes of price in interval [date_start, date_end).
 
         :param id: UUID of element
         :param date_start: date statistics is collecting from, if None, collect from the most beginning

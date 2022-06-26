@@ -112,6 +112,63 @@ IMPORT_BATCHES = [
     },
 ]
 
+WRONG_IMPORTS = [
+    {
+        "items": [],
+        "updateDate": "2022-02-05T15:00:00.000Z",
+    },
+    {
+        "items": 1,
+        "updateDate": "2022-02-05T15:00:00.000Z",
+    },
+    {
+        "items": [
+            {
+                "type": "OFFER",
+                "name": "Priceless",
+                "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+                "parentId": None,
+            }
+        ],
+        "updateDate": "2022-02-01T12:00:00.000Z",
+    },
+    {
+        "items": [
+            {
+                "type": "CATEGORY",
+                "name": "Wrong date",
+                "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+                "parentId": None,
+            }
+        ],
+        "updateDate": "2022-02-99T12:00:00.000Z",
+    },
+    {
+        "items": [
+            {
+                "type": "CATEGORY",
+                "name": "Wrong uuid",
+                "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df",
+                "parentId": None,
+            }
+        ],
+        "updateDate": "2022-02-01T12:00:00.000Z",
+    },
+]
+
+IMPORT_CHANGE_TYPE = {
+    "items": [
+        {
+            "type": "OFFER",
+            "name": "Смартфоны",
+            "id": "d515e43f-f3f6-4471-bb77-6b455017a2d2",
+            "parentId": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "price": 80000,
+        },
+    ],
+    "updateDate": "2022-02-09T12:00:00.000Z",
+}
+
 EXPECTED_TREE = {
     "type": "CATEGORY",
     "name": "Товары",
@@ -254,6 +311,133 @@ EXPECTED_STATS = {
     ]
 }
 
+EXPECTED_STATS_INTERVAL = {
+    "items": [
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": 69999,
+            "date": "2022-02-02T12:00:00.000Z",
+        },
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": 55749,
+            "date": "2022-02-03T12:00:00.000Z",
+        },
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": 58599,
+            "date": "2022-02-03T15:00:00.000Z",
+        },
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": 58599,
+            "date": "2022-02-04T15:00:00.000Z",
+        },
+    ]
+}
+
+EXPECTED_STATS_END = {
+    "items": [
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": None,
+            "date": "2022-02-01T12:00:00.000Z",
+        },
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": 69999,
+            "date": "2022-02-02T12:00:00.000Z",
+        },
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": 55749,
+            "date": "2022-02-03T12:00:00.000Z",
+        },
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": 58599,
+            "date": "2022-02-03T15:00:00.000Z",
+        },
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": 58599,
+            "date": "2022-02-04T15:00:00.000Z",
+        },
+    ]
+}
+
+EXPECTED_STATS_START = {
+    "items": [
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": 69999,
+            "date": "2022-02-02T12:00:00.000Z",
+        },
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": 55749,
+            "date": "2022-02-03T12:00:00.000Z",
+        },
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": 58599,
+            "date": "2022-02-03T15:00:00.000Z",
+        },
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": 58599,
+            "date": "2022-02-04T15:00:00.000Z",
+        },
+        {
+            "id": "069cb8d7-bbdd-47d3-ad8f-82ef4c269df1",
+            "name": "Товары",
+            "parentId": None,
+            "type": "CATEGORY",
+            "price": 54599,
+            "date": "2022-02-05T15:00:00.000Z",
+        },
+    ]
+}
+
 
 def request(path, method="GET", data=None, json_response=False):
     try:
@@ -302,6 +486,7 @@ def print_diff(expected, response):
 
 
 def test_import():
+    test_validate_import()
     for index, batch in enumerate(IMPORT_BATCHES):
         print(f"Importing batch {index}")
         status, _ = request("/imports", method="POST", data=batch)
@@ -311,7 +496,34 @@ def test_import():
     print("Test import passed.")
 
 
+def test_validate_import():
+    for batch in WRONG_IMPORTS:
+        status, _ = request("/imports", method="POST", data=batch)
+        assert status == 400, f"Expected HTTP status code 400, got {status}"
+
+    print("Test validate import passed.")
+
+
+def test_change_type_import():
+    status, _ = request("/imports", method="POST", data=IMPORT_CHANGE_TYPE)
+    assert status == 400, f"Expected HTTP status code 400, got {status}"
+
+    print("Test change type import passed.")
+
+
 def test_nodes():
+    status, response = request(
+        "/nodes/27972567-3d5d-41b1-9947-480745832234", json_response=True
+    )
+    assert status == 404, f"Expected HTTP status code 404, got {status}"
+    print("Test with non-existed uuid passed.")
+
+    status, response = request(
+        "/nodes/27972567-3d5d-41b1-9947-48074583223", json_response=True
+    )
+    assert status == 400, f"Expected HTTP status code 400, got {status}"
+    print("Test with wrong uuid passed.")
+
     status, response = request(f"/nodes/{ROOT_ID}", json_response=True)
     # print(json.dumps(response, indent=2, ensure_ascii=False))
 
@@ -328,6 +540,34 @@ def test_nodes():
 
 
 def test_sales():
+    params = urllib.parse.urlencode({"date": "2022-02-99T15:00:00.000Z"})
+    status, response = request(f"/sales?{params}", json_response=True)
+    assert status == 400, f"Expected HTTP status code 400, got {status}"
+    print("Test salse with wrong date passed.")
+
+    params = urllib.parse.urlencode({"date": "2022-02-05T15:00:00.000Z"})
+    status, response = request(f"/sales?{params}", json_response=True)
+    assert status == 200, f"Expected HTTP status code 200, got {status}"
+    if response != EXPECTED_SALES:
+        print_diff(EXPECTED_SALES, response)
+        print("Response sales doesn't match expected sales.")
+        sys.exit(1)
+
+    print("Test sales with the last passed.")
+    test_sales_not_last_date()
+
+    params = urllib.parse.urlencode({"date": "2021-02-05T15:00:00.000Z"})
+    status, response = request(f"/sales?{params}", json_response=True)
+    assert status == 200, f"Expected HTTP status code 200, got {status}"
+    expected_answer = {"items": []}
+    if response != expected_answer:
+        print_diff(EXPECTED_SALES, response)
+        print("Response sales doesn't match expected sales.")
+        sys.exit(1)
+    print("Test sales passed.")
+
+
+def test_sales_not_last_date():
     params = urllib.parse.urlencode({"date": "2022-02-04T15:00:00.000Z"})
     status, response = request(f"/sales?{params}", json_response=True)
     assert status == 200, f"Expected HTTP status code 200, got {status}"
@@ -336,13 +576,18 @@ def test_sales():
         print("Response sales doesn't match expected sales.")
         sys.exit(1)
 
-    print("Test sales passed.")
+    print("Test sales with date earlier than last update passed.")
 
 
 def test_stats():
-    # params = urllib.parse.urlencode(
-    #     {"dateStart": None, "dateEnd": None}
-    # )
+    test_stats_interval()
+    test_stats_start()
+    test_stats_end()
+    test_stats_all()
+    print("Test stats passed.")
+
+
+def test_stats_all():
     status, response = request(f"/node/{ROOT_ID}/statistic", json_response=True)
 
     assert status == 200, f"Expected HTTP status code 200, got {status}"
@@ -350,7 +595,51 @@ def test_stats():
         print_diff(EXPECTED_STATS, response)
         print("Response stats doesn't match expected stats.")
         sys.exit(1)
-    print("Test stats passed.")
+    print("Test stats without date parameters passed.")
+
+
+def test_stats_interval():
+    params = urllib.parse.urlencode(
+        {"dateStart": "2022-02-02T12:00:00.000Z", "dateEnd": "2022-02-05T15:00:00.000Z"}
+    )
+    status, response = request(
+        f"/node/{ROOT_ID}/statistic?{params}", json_response=True
+    )
+
+    assert status == 200, f"Expected HTTP status code 200, got {status}"
+    if response != EXPECTED_STATS_INTERVAL:
+        print_diff(EXPECTED_STATS_INTERVAL, response)
+        print("Response stats doesn't match expected stats.")
+        sys.exit(1)
+    print("Test stats with dateStart and dateEnd passed.")
+
+
+def test_stats_end():
+    params = urllib.parse.urlencode({"dateEnd": "2022-02-05T15:00:00.000Z"})
+    status, response = request(
+        f"/node/{ROOT_ID}/statistic?{params}", json_response=True
+    )
+
+    assert status == 200, f"Expected HTTP status code 200, got {status}"
+    if response != EXPECTED_STATS_END:
+        print_diff(EXPECTED_STATS_END, response)
+        print("Response stats doesn't match expected stats.")
+        sys.exit(1)
+    print("Test stats with only dateEnd passed.")
+
+
+def test_stats_start():
+    params = urllib.parse.urlencode({"dateStart": "2022-02-02T12:00:00.000Z"})
+    status, response = request(
+        f"/node/{ROOT_ID}/statistic?{params}", json_response=True
+    )
+
+    assert status == 200, f"Expected HTTP status code 200, got {status}"
+    if response != EXPECTED_STATS_START:
+        print_diff(EXPECTED_STATS_START, response)
+        print("Response stats doesn't match expected stats.")
+        sys.exit(1)
+    print("Test stats with only dateStart passed.")
 
 
 def test_delete():
