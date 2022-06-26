@@ -17,18 +17,12 @@ class Item(Base):
     price = Column(Integer, nullable=True)
     date = Column(String(180), nullable=False)
 
-    def dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
-
 
 class Parent(Base):
     __tablename__ = "parent"
 
     id = Column(postgressUUID(as_uuid=True), ForeignKey(Item.id), primary_key=True)
     parentId = Column(postgressUUID(as_uuid=True), ForeignKey(Item.id))
-
-    def dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
 
 class Stats(Base):
@@ -41,9 +35,6 @@ class Stats(Base):
     price = Column(Integer, nullable=True)
     date = Column(String(180), nullable=False)
     parentId = Column(postgressUUID(as_uuid=True), nullable=True)
-
-    def dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
 
 class DatabaseErrorInternal(Exception):

@@ -1,7 +1,6 @@
 """
 Module with database interface class.
 """
-import contextlib
 from datetime import datetime, timedelta
 from math import floor
 from statistics import mean
@@ -14,7 +13,7 @@ from dateutil import parser
 from sqlalchemy import create_engine, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.dialects.postgresql.dml import Insert
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.sql.elements import TextClause
 from sqlalchemy.sql.expression import bindparam
 
 from database.models import Base, DatabaseErrorInternal, Item, Parent
@@ -42,18 +41,6 @@ class DBInterface:
         if not engine.dialect.has_table(engine.connect(), Item):
             Base.metadata.create_all(engine)
 
-    @contextlib.contextmanager
-    def open_session(self, global_session: sessionmaker) -> Session:
-        """
-        Context manager that opens session with database
-
-        :param global_session: sessionmaker binded with engine
-        :return: session
-        """
-        session: Session = global_session()
-        yield session
-        session.close()
-
     async def check_items_type(self, items_data: list[dict]) -> None:
         """
         Check if any of items from items_data exists in table Item with different type.
@@ -63,7 +50,7 @@ class DBInterface:
 
         for item in items_data:
             query = "SELECT * FROM item WHERE id = :id"
-            item_in_db: Optional[Item] = await self.db.fetch_one(
+            item_in_db: Optional[Record] = await self.db.fetch_one(
                 query=query, values={"id": item["id"]}
             )
             if not item_in_db:
@@ -108,10 +95,10 @@ class DBInterface:
         # Update date of all ancestors
         if len(ancestors_ids) != 0:
             query = "UPDATE item SET date = :date WHERE id in :ancestors_ids"
-            query = text(query).bindparams(
+            query: TextClause = text(query).bindparams(
                 bindparam("ancestors_ids", value=list(ancestors_ids), expanding=True)
             )
-            query = query.bindparams(date=date)
+            query: TextClause = query.bindparams(date=date)
             await self.db.execute(query=query)
         # Add all rows that changed to statistics
         changed_ids: set[UUID] = ancestors_ids | items_ids
@@ -121,7 +108,7 @@ class DBInterface:
             FROM item LEFT JOIN parent ON item.id = parent.id
             WHERE item.id in :changed_ids
         """
-        query = text(query).bindparams(
+        query: TextClause = text(query).bindparams(
             bindparam("changed_ids", value=list(changed_ids), expanding=True)
         )
         await self.db.execute(query=query)
@@ -132,17 +119,17 @@ class DBInterface:
         """
         Recursive method for getting ids of all ancestors of parents_ids.
 
-        :param parents_ids: set of UUIDs of current items for which to look ancestors
+        :param current_parents_ids: set of UUIDs of current items for which to look ancestors
         :param all_ancestors: set of UUIDs of all ancestors (incude collected on previous steps)
         :return: all_ancestors - set of UUIDs of all ancestors (include found on that step)
         """
         query = "SELECT * FROM parent WHERE id in :current_parents_ids"
-        query = text(query).bindparams(
+        query: TextClause = text(query).bindparams(
             bindparam(
                 "current_parents_ids", value=list(current_parents_ids), expanding=True
             )
         )
-        next_parents: list[Parent] = await self.db.fetch_all(query=query)
+        next_parents: list[Record] = await self.db.fetch_all(query=query)
         next_parents_ids: set[UUID] = {p.parentId for p in next_parents if p.parentId}
         new_ids: set[UUID] = next_parents_ids - all_ancestors
         if len(new_ids) > 0:
@@ -157,7 +144,7 @@ class DBInterface:
         :param id: UUID of element to delete
         """
         query = "SELECT * FROM item WHERE id = :id"
-        item: Optional[Item] = await self.db.fetch_one(query=query, values={"id": id})
+        item: Optional[Record] = await self.db.fetch_one(query=query, values={"id": id})
         if not item:
             raise DatabaseErrorInternal(f"Item {id} not found in database")
 
@@ -167,7 +154,6 @@ class DBInterface:
         """
         Recursive method for deleting item and its subtree.
 
-        :param session: opened db-session
         :param parent_id: UUID of element to delete
         """
         # Delete element from "parent" table
@@ -176,7 +162,7 @@ class DBInterface:
 
         # Find children of the element and delete them
         query = """SELECT id FROM parent WHERE "parentId" = :parent_id"""
-        children_rows: list[Parent] = await self.db.fetch_all(
+        children_rows: list[Record] = await self.db.fetch_all(
             query=query, values={"parent_id": parent_id}
         )
         for child in children_rows:
@@ -302,7 +288,7 @@ class DBInterface:
                 SELECT * FROM stats
                 WHERE id = :id
                     AND date::timestamp with time zone >= :date_start
-                    AND date::timestamp with time zone <= :date_end
+                    AND date::timestamp with time zone < :date_end
             """
             values = {
                 "id": id,
@@ -320,7 +306,7 @@ class DBInterface:
             query = """
                 SELECT * FROM stats
                 WHERE id = :id
-                    AND date::timestamp with time zone <= :date_end
+                    AND date::timestamp with time zone < :date_end
             """
             values = {"id": id, "date_end": parser.parse(date_end)}
         else:
