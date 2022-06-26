@@ -87,11 +87,11 @@ async def post_imports(items_to_post: PostImportsRequest):
     },
     tags=["Базовые задачи"],
 )
-def delete_id(id: UUID):
+async def delete_id(id: UUID):
     """
     Удаляет элемент по id. Если элемента с id не существует, возвращает ошибку 404.
     """
-    return core.delete_id(id)
+    return await core.delete_id(id)
 
 
 @app.get(
@@ -105,12 +105,12 @@ def delete_id(id: UUID):
     },
     tags=["Базовые задачи"],
 )
-def get_node(id: UUID):
+async def get_node(id: UUID):
     """
     Находит элемент по id. Если элемента с id не существует, возвращает ошибку 404.
     Для категории в поле children возвращается дерево дочерних элементов.
     """
-    return core.get_node(id)
+    return await core.get_node(id)
 
 
 @app.get(

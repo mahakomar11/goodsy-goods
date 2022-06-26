@@ -101,7 +101,7 @@ class Core:
         # TODO: catch exceptions
         await self.database.post_items(items_data, parents_data)
 
-    def delete_id(self, id: UUID) -> Union[None, JSONResponse]:
+    async def delete_id(self, id: UUID) -> Union[None, JSONResponse]:
         """
         Handler for deleting item by id.
 
@@ -110,13 +110,13 @@ class Core:
             or JSONResponse with NotFoundError, if there is no item with id in database
         """
         try:
-            self.database.delete_item(id)
+            await self.database.delete_item(id)
         except DatabaseErrorInternal:
             return JSONResponse(
                 status_code=404, content=NotFoundError(message="Item not found").dict()
             )
 
-    def get_node(self, id: UUID) -> Union[dict, JSONResponse]:
+    async def get_node(self, id: UUID) -> Union[dict, JSONResponse]:
         """
         Handler for getting item by id.
 
@@ -125,7 +125,7 @@ class Core:
             or JSONResponse with NotFoundError, if there is no item with id in database
         """
         try:
-            return self.database.get_item(id)
+            return await self.database.get_item(id)
         except DatabaseErrorInternal:
             return JSONResponse(
                 status_code=404, content=NotFoundError(message="Item not found").dict()

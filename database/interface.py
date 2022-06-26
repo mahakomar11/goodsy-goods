@@ -9,12 +9,12 @@ from typing import Optional, Union
 from uuid import UUID
 
 import databases
+from databases.backends.postgres import Record
 from dateutil import parser
 from sqlalchemy import create_engine, func, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.dialects.postgresql.dml import Insert
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.orm.query import Query
 from sqlalchemy.sql.expression import bindparam
 from sqlalchemy.sql.selectable import Subquery
 
@@ -151,85 +151,96 @@ class DBInterface:
             await self._get_all_ancestors(new_ids, all_ancestors)
         return all_ancestors
 
-    def delete_item(self, id: UUID) -> None:
+    async def delete_item(self, id: UUID) -> None:
         """
         Delete item with all its children from database.
 
         :param id: UUID of element to delete
         """
-        with self.open_session(self.global_session) as session:
-            item: Optional[Item] = session.get(Item, id)
-            if not item:
-                raise DatabaseErrorInternal(f"Item {id} not found in database")
+        query = "SELECT * FROM item WHERE id = :id"
+        item: Optional[Item] = await self.db.fetch_one(query=query, values={"id": id})
+        if not item:
+            raise DatabaseErrorInternal(f"Item {id} not found in database")
 
-            self._delete_with_children(session, id)
-            session.commit()
+        await self._delete_with_children(id)
 
-    def _delete_with_children(self, session: Session, parent_id: UUID) -> None:
+    async def _delete_with_children(self, parent_id: UUID) -> None:
         """
         Recursive method for deleting item and its subtree.
 
         :param session: opened db-session
         :param parent_id: UUID of element to delete
         """
-        parent: Optional[Parent] = session.get(Parent, parent_id)
-        if parent:
-            session.delete(parent)
-        children_query: Query = session.query(Parent.id).filter_by(parentId=parent_id)
-        for row in children_query.all():
-            self._delete_with_children(session, row[0])
-        session.delete(session.get(Item, parent_id))
-        session.query(Stats).filter_by(id=parent_id).delete()
+        # Delete element from "parent" table
+        query = "DELETE FROM parent WHERE id = :parent_id"
+        await self.db.execute(query=query, values={"parent_id": parent_id})
 
-    def get_item(self, id: UUID) -> dict:
+        # Find children of the element and delete them
+        query = """SELECT id FROM parent WHERE "parentId" = :parent_id"""
+        children_rows: list[Parent] = await self.db.fetch_all(
+            query=query, values={"parent_id": parent_id}
+        )
+        for child in children_rows:
+            await self._delete_with_children(child.id)
+
+        # Delete element from "item" table
+        query = "DELETE FROM item WHERE id = :parent_id"
+        await self.db.execute(query=query, values={"parent_id": parent_id})
+
+        # Delete element from "stats" table
+        query = "DELETE FROM stats WHERE id = :parent_id"
+        await self.db.execute(query=query, values={"parent_id": parent_id})
+
+    async def get_item(self, id: UUID) -> dict:
         """
         Get dict with item and all its subtree.
 
         :param id: UUID of element
         :return: item and all its subtree
         """
-        with self.open_session(self.global_session) as session:
-            item: Optional[Item] = session.get(Item, id)
-            if not item:
-                raise DatabaseErrorInternal(f"Item {id} not found in database")
+        # Check if element is in database
+        query = "SELECT * FROM item WHERE id = :id"
+        item: Optional[Record] = await self.db.fetch_one(query=query, values={"id": id})
+        if not item:
+            raise DatabaseErrorInternal(f"Item {id} not found in database")
 
-            if item.type == "OFFER":
-                return item.dict()
-            tree, prices = self._get_children(session, item.id, item.dict())
-            tree["parentId"] = session.get(Parent, id).parentId
-            return tree
+        if item.type == "OFFER":
+            return dict(item._mapping)
+        tree, prices = await self._get_children(item.id, dict(item._mapping))
+        query = """SELECT "parentId" FROM parent WHERE id = :id"""
+        tree["parentId"] = (
+            await self.db.fetch_one(query=query, values={"id": id})
+        ).parentId
+        return tree
 
-    def _get_children(
-        self, session: Session, parent_id: str, tree: dict
-    ) -> (dict, list):
+    async def _get_children(self, parent_id: str, tree: dict) -> (dict, list):
         """
         Recursive method for getting subtree of item and calculating mean price for categories.
 
-        :param session: opened db-session
         :param parent_id: UUID of element
         :param tree: tree, calculated at the previous step
         :return:    tree - tree with children and calculated price
                     prices - list of prices of child offers
         """
-        children_query: Query = (
-            session.query(
-                Parent.id, Parent.parentId, Item.name, Item.type, Item.date, Item.price
-            )
-            .filter_by(parentId=parent_id)
-            .join(Item, Parent.id == Item.id)
+        query = """
+        SELECT parent.id as id, "parentId", name, type, date, price
+        FROM item
+        JOIN parent ON parent.id = item.id
+        WHERE "parentId" = :parent_id
+        """
+        children_rows: list[Record] = await self.db.fetch_all(
+            query=query, values={"parent_id": parent_id}
         )
 
         children: list[dict] = list()
         prices: list[int] = list()
-        for row in children_query.all():
+        for row in children_rows:
             subtree = dict(row._mapping)
             if subtree["type"] == "OFFER":
                 children.append(subtree)
                 prices.append(subtree["price"])
             else:
-                child_subtree, child_prices = self._get_children(
-                    session, row[0], subtree
-                )
+                child_subtree, child_prices = await self._get_children(row.id, subtree)
                 children.append(child_subtree)
                 prices.extend(child_prices)
 
