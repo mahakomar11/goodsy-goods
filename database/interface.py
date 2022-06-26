@@ -8,12 +8,14 @@ from statistics import mean
 from typing import Optional, Union
 from uuid import UUID
 
+import databases
 from dateutil import parser
 from sqlalchemy import create_engine, func, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.dialects.postgresql.dml import Insert
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.orm.query import Query
+from sqlalchemy.sql.expression import bindparam
 from sqlalchemy.sql.selectable import Subquery
 
 from database.models import Base, DatabaseErrorInternal, Item, Parent, Stats
@@ -32,11 +34,12 @@ class DBInterface:
         host: str,
         port: Union[str, int],
     ):
+        self.db = databases.Database(
+            f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database_name}"
+        )
         engine = create_engine(
             f"postgresql://{user}:{password}@{host}:{port}/{database_name}"
         )
-        self.global_session = sessionmaker()
-        self.global_session.configure(bind=engine)
         if not engine.dialect.has_table(engine.connect(), Item):
             Base.metadata.create_all(engine)
 
@@ -52,24 +55,27 @@ class DBInterface:
         yield session
         session.close()
 
-    def check_items_type(self, items_data: list[dict]) -> None:
+    async def check_items_type(self, items_data: list[dict]) -> None:
         """
         Check if any of items from items_data exists in table Item with different type.
 
         :param items_data: list of dict with keys id, name, type, price, date
         """
-        with self.open_session(self.global_session) as session:
-            for item in items_data:
-                item_in_db: Optional[Item] = session.get(Item, item["id"])
-                if not item_in_db:
-                    continue
-                if item["type"] != item_in_db.type:
-                    raise DatabaseErrorInternal(
-                        f"Item with {item_in_db.id} exists in database as {item_in_db.type}. "
-                        f"Changing type is prohibited."
-                    )
 
-    def post_items(self, items_data: list, parents_data: list) -> None:
+        for item in items_data:
+            query = "SELECT * FROM item WHERE id = :id"
+            item_in_db: Optional[Item] = await self.db.fetch_one(
+                query=query, values={"id": item["id"]}
+            )
+            if not item_in_db:
+                continue
+            if item["type"] != item_in_db.type:
+                raise DatabaseErrorInternal(
+                    f"Item with {item_in_db.id} exists in database as {item_in_db.type}. "
+                    f"Changing type is prohibited."
+                )
+
+    async def post_items(self, items_data: list, parents_data: list) -> None:
         """
         Put items to database.
 
@@ -77,78 +83,72 @@ class DBInterface:
         :param parents_data: list of dict with keys: id, parentId
         """
         date: str = items_data[0]["date"]
-        with self.open_session(self.global_session) as session:
-            items_ids: set[UUID] = {item["id"] for item in items_data}
-            parents_ids: set[UUID] = {
-                p["parentId"] for p in parents_data if p["parentId"]
-            }
+        items_ids: set[UUID] = {item["id"] for item in items_data}
+        parents_ids: set[UUID] = {p["parentId"] for p in parents_data if p["parentId"]}
 
-            ancestors_ids: set[UUID] = set()
-            if len(parents_ids) > 0:
-                ancestors_ids: set[UUID] = self._get_all_ancestors(
-                    session, parents_ids, parents_ids
-                )
-            # Update Item table
-            insertion: Insert = insert(Item).values(items_data)
-            session.execute(
+        ancestors_ids: set[UUID] = set()
+        if len(parents_ids) > 0:
+            ancestors_ids: set[UUID] = await self._get_all_ancestors(
+                parents_ids, parents_ids
+            )
+        # Update Item table
+        insertion: Insert = insert(Item).values(items_data)
+        await self.db.execute(
+            insertion.on_conflict_do_update(
+                index_elements=[Item.id], set_=insertion.excluded
+            )
+        )
+        # Update Parent table
+        if len(parents_data) != 0:
+            insertion: Insert = insert(Parent).values(parents_data)
+            await self.db.execute(
                 insertion.on_conflict_do_update(
-                    index_elements=[Item.id], set_=insertion.excluded
+                    index_elements=[Parent.id], set_=insertion.excluded
                 )
             )
-            # Update Parent table
-            if len(parents_data) != 0:
-                insertion: Insert = insert(Parent).values(parents_data)
-                session.execute(
-                    insertion.on_conflict_do_update(
-                        index_elements=[Parent.id], set_=insertion.excluded
-                    )
-                )
-            # Update date of all ancestors
-            if len(ancestors_ids) != 0:
-                (
-                    session.query(Item)
-                    .filter(Item.id.in_(ancestors_ids))
-                    .update({Item.date: date})
-                )
-            # Add all rows that changed to statistics
-            changed_ids: set[UUID] = ancestors_ids | items_ids
-            select_changed: Query = (
-                session.query(
-                    Item.id,
-                    Item.name,
-                    Item.type,
-                    Item.price,
-                    Item.date,
-                    Parent.parentId,
-                )
-                .filter(Item.id.in_(changed_ids))
-                .join(Parent, Parent.id == Item.id, isouter=True)
+        # Update date of all ancestors
+        if len(ancestors_ids) != 0:
+            query = "UPDATE item SET date = :date WHERE id in :ancestors_ids"
+            query = text(query).bindparams(
+                bindparam("ancestors_ids", value=list(ancestors_ids), expanding=True)
             )
-            session.execute(
-                insert(Stats).from_select(
-                    ["id", "name", "type", "price", "date", "parentId"], select_changed
-                )
-            )
-            session.commit()
+            query = query.bindparams(date=date)
+            await self.db.execute(query=query)
+        # Add all rows that changed to statistics
+        changed_ids: set[UUID] = ancestors_ids | items_ids
+        query = """
+            INSERT INTO stats (id, name, type, price, date, "parentId")
+            SELECT item.id, name, type, price, date, parent."parentId"
+            FROM item LEFT JOIN parent ON item.id = parent.id
+            WHERE item.id in :changed_ids
+        """
+        query = text(query).bindparams(
+            bindparam("changed_ids", value=list(changed_ids), expanding=True)
+        )
+        await self.db.execute(query=query)
 
-    def _get_all_ancestors(
-        self, session, current_parents_ids: set[UUID], all_ancestors: set[UUID]
+    async def _get_all_ancestors(
+        self, current_parents_ids: set[UUID], all_ancestors: set[UUID]
     ) -> set[UUID]:
         """
         Recursive method for getting ids of all ancestors of parents_ids.
 
-        :param session: opened db-session
-        :param parents_ids: set of UUIDs of
-        :return:
+        :param parents_ids: set of UUIDs of current items for which to look ancestors
+        :param all_ancestors: set of UUIDs of all ancestors (incude collected on previous steps)
+        :return: all_ancestors - set of UUIDs of all ancestors (include found on that step)
         """
-        next_parents: list[Parent] = (
-            session.query(Parent).filter(Parent.id.in_(current_parents_ids)).all()
+        query = "SELECT * FROM parent WHERE id in :current_parents_ids"
+        query = text(query).bindparams(
+            bindparam(
+                "current_parents_ids", value=list(current_parents_ids), expanding=True
+            )
         )
+        next_parents: list[Parent] = await self.db.fetch_all(query=query)
         next_parents_ids: set[UUID] = {p.parentId for p in next_parents if p.parentId}
         new_ids: set[UUID] = next_parents_ids - all_ancestors
         if len(new_ids) > 0:
             all_ancestors.update(new_ids)
-            self._get_all_ancestors(session, new_ids, all_ancestors)
+            await self._get_all_ancestors(new_ids, all_ancestors)
         return all_ancestors
 
     def delete_item(self, id: UUID) -> None:

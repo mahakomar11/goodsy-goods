@@ -59,7 +59,7 @@ class Core:
             parents_data.append(dict(id=item["id"], parentId=item["parentId"]))
         return items_data, parents_data
 
-    def post_imports(
+    async def post_imports(
         self, items_to_post: PostImportsRequest
     ) -> Union[None, JSONResponse]:
         """
@@ -92,14 +92,14 @@ class Core:
         items_data, parents_data = self._prepare_items_data(items, date)
 
         try:
-            self.database.check_items_type(items_data)
+            await self.database.check_items_type(items_data)
         except DatabaseErrorInternal as e:
             return JSONResponse(
                 status_code=400, content=BadRequestError(message=e.detail).dict()
             )
 
         # TODO: catch exceptions
-        self.database.post_items(items_data, parents_data)
+        await self.database.post_items(items_data, parents_data)
 
     def delete_id(self, id: UUID) -> Union[None, JSONResponse]:
         """

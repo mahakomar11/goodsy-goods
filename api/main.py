@@ -34,6 +34,16 @@ DB = DBInterface(**DB_SETTINGS)
 core = Core(DB)
 
 
+@app.on_event("startup")
+async def startup():
+    await DB.db.connect()
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    await DB.db.disconnect()
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc: RequestValidationError):
     return JSONResponse(
@@ -57,13 +67,13 @@ async def validation_exception_handler(request, exc: RequestValidationError):
     },
     tags=["Базовые задачи"],
 )
-def post_imports(items_to_post: PostImportsRequest):
+async def post_imports(items_to_post: PostImportsRequest):
     """
     Импортирует новые товары и/или категории.
     Тип элемента может быть OFFER или CATEGORY.
     Если тип элемента CATEGORY, поле price - пустое.
     """
-    return core.post_imports(items_to_post)
+    return await core.post_imports(items_to_post)
 
 
 @app.delete(
