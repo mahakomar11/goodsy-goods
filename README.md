@@ -21,7 +21,7 @@ docker-compose up -d --build
 5. Готово! Сервис развёрнут на 0.0.0.0:80.
 6. Чтобы остановить:
 ```
-docker-compose stop
+docker-compose down
 ```
 7. Чтобы поднять заново (без изменения кода):
 ```
